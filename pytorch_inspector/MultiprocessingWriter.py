@@ -12,7 +12,9 @@ class MultiprocessingWriter(torch.multiprocessing.Process):
     Information writer for multiprocessing operation.
     """    
     # Initialize the class with a file name
-    def __init__(self, unique_id, event, queue, keys, shape_expected, fps, maxframes, max_elapsed_time):
+    def __init__(self, unique_id : int, event : torch.multiprocessing.Event, 
+                 queue : torch.multiprocessing.Queue, keys : list, 
+                 shape_expected : tuple, fps : float, maxframes : int, max_elapsed_time : float):
         """
         Args:
         - **unique_id**: Unique identifier associated to this process
@@ -40,7 +42,7 @@ class MultiprocessingWriter(torch.multiprocessing.Process):
         self.maxframes = maxframes
         self.max_elapsed_time = max_elapsed_time
 
-    def run(self):
+    def run(self) -> None:
         """
         Function called when the process starts.
         The process automatically creates a video of the format:
@@ -66,7 +68,7 @@ class MultiprocessingWriter(torch.multiprocessing.Process):
             internal_counter[key] = 0
             internal_out[key] = None
 
-        def tensor_plot2D(key, message, tensor_data):
+        def tensor_plot2D(key, message : str, tensor_data : torch.Tensor) -> None:
             """
             Plot a tensor image and write a message on the top. The image is then added to a video.
             Args:
@@ -74,7 +76,7 @@ class MultiprocessingWriter(torch.multiprocessing.Process):
             - **message**: message to write on the image.
             - **tensor_data**: tensor to visualize.
             """
-            def plt2arr(fig, draw=True):
+            def plt2arr(fig, draw=True) -> np.array:
                 """
                 Convert a plot to numpy array.
                 Args:

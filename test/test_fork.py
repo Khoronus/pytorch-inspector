@@ -1,8 +1,8 @@
 import time
 import torch
 
-#import sys
-#sys.path.append('.')
+import sys
+sys.path.append('.')
 from pytorch_inspector import ParrallelHandler
 
 if __name__ == '__main__':
@@ -13,8 +13,8 @@ if __name__ == '__main__':
         a_vec = torch.randn(50,50,requires_grad=True)
         c_prime = torch.randn(80,80,requires_grad=True)
 
-        ph1 = ParrallelHandler()
-        ph2 = ParrallelHandler()
+        ph1 = ParrallelHandler((640,480), 20.0, 50, 120, 20.0)
+        ph2 = ParrallelHandler((640,480), 20.0, 50, 120, 20.0)
         queue, contextes = ph1.track_tensor(0, {'a_vec':a_vec, 'c_prime':c_prime})
 
         # Create a counter variable

@@ -19,11 +19,23 @@ class ParrallelHandler(metaclass=SingletonMeta):
     """
     Singleton class to manage all processes instantiated by the calling program.
     """    
-    def __init__(self):
+    def __init__(self, shape_expected, fps, maxframes, max_elapsed_time, frequency):
         """
         Initialization keeps track of all the events created to close the processes once the program terminate.
+        Args:
+        - **shape_expected**: Expected video output size.
+        - **fps**: Expected video frame rate.
+        - **maxframes**: Maximum number of frames for a video.
+        - **max_elapsed_time**: Maximum time without receiving new data before timeout.
+        - **frequency**: Backpropagation tensor sampling recording.
         """    
         self.events = []
+
+        self.shape_expected = shape_expected
+        self.fps = fps
+        self.maxframes = maxframes
+        self.max_elapsed_time = max_elapsed_time
+        self.frequency = frequency
 
     def __del__(self):
         """
@@ -91,7 +103,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
 
         # Pass the arguments for creating the process object as a tuple
         contextes = []
-        args = (unique_id, event, queue, keys, (640,480), 20.0, 50, 120)
+        args = (unique_id, event, queue, keys, self.shape_expected, self.fps, self.maxframes, self.max_elapsed_time)
         if method == 'spawn':
             context = torch.multiprocessing.spawn(self.parallel_start_process_spawn, args=(args,), nprocs=1, join=False)
         elif method == 'fork':
@@ -117,7 +129,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
         # register a tensor hook
         internal_counter = {name : 0}
         def myhook(grad):
-            if internal_counter[name] % 20 == 0:
+            if internal_counter[name] % self.frequency == 0:
                 list_data = []
                 list_data.append(name)
                 list_data.append(str(internal_counter[name]))
