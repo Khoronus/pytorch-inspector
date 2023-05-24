@@ -3,19 +3,19 @@ import torch
 
 import sys
 sys.path.append('.')
-from pytorch_inspector import ParrallelHandler
+from pytorch_inspector import ParrallelHandler, DataRecorder, ProcessInfoData
 
 if __name__ == '__main__':
     torch.multiprocessing.set_start_method("spawn")
 
     try:
-
         a_vec = torch.randn(50,50,requires_grad=True)
         c_prime = torch.randn(80,80,requires_grad=True)
 
-        ph1 = ParrallelHandler((640,480), 20.0, 50, 120, 20.0)
-        ph2 = ParrallelHandler((640,480), 20.0, 50, 120, 20.0)
-        queue, contextes = ph1.track_tensor(0, {'a_vec':a_vec, 'c_prime':c_prime})
+        dr0 = DataRecorder((640,480), 20., 30, 'output')
+        ph1 = ParrallelHandler(callback_onrun=dr0.tensor_plot2D, callback_onclosing=dr0.flush, frequency=20.0, max_elapsed_time=30.0)
+        ph2 = ParrallelHandler(callback_onrun=dr0.tensor_plot2D, callback_onclosing=dr0.flush, frequency=20.0, max_elapsed_time=30.0)
+        unique_id, queue_to, queue_from, contexts = ph1.track_tensor(0, {'a_vec':a_vec, 'c_prime':c_prime})
 
         # Create a counter variable
         counter = 0
@@ -28,33 +28,29 @@ if __name__ == '__main__':
             # Generate a line with the counter value
             line = f"This is line {counter} from main process"
             # Loop through the processes list
-            for ctx in contextes:
+            for ctx in contexts:
                 # Call the write_line method of each process with the line
                 array = torch.rand(512,1024).unsqueeze(0)
                 array = torch.nn.Parameter(array).share_memory_()
 
-                list_data = []
-                list_data.append('a_vec')
-                list_data.append(line)
-                list_data.append(array)
                 # Put the obj in the queue
-                if queue.qsize() > 2:
+                if queue_to.qsize() > 4:
                     pass
                 else:
-                    queue.put_nowait(list_data)
+                    info_data = ProcessInfoData(name='a_vec', internal_message='internal_line', 
+                                                message=line, shared_data=array)
+                    queue_to.put_nowait(info_data)
 
                 array = torch.rand(512,1024).unsqueeze(0)
                 array = torch.nn.Parameter(array).share_memory_()
 
-                list_data = []
-                list_data.append('c_prime')
-                list_data.append(line)
-                list_data.append(array)
                 # Put the obj in the queue
-                if queue.qsize() > 2:
+                if queue_to.qsize() > 4:
                     pass
                 else:
-                    queue.put_nowait(list_data)
+                    info_data = ProcessInfoData(name='c_prime', internal_message='internal_line', 
+                                                message=line, shared_data=array)
+                    queue_to.put_nowait(info_data)
 
             # Sleep for 1 second
             time.sleep(0.01)
@@ -62,12 +58,13 @@ if __name__ == '__main__':
                 break
 
         # stop the processes (NECESSARY)
+        print('trying to stop')
         ph1.stop()
         print('done')
         # Wait for all processes to finish (they never will)
-        #for context in contextes:
-        #    context.join()
-        print(f'processes:{len(contextes)}')
+        for context in contexts:
+            context.join()
+        print(f'processes:{len(contexts)}')
 
     except Exception as e:
         print(f'test_spawn ex:{e}')
