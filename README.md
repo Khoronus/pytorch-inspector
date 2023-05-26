@@ -57,13 +57,13 @@ def main():
     # Step 2: Define a ParrallelHandler
     #----------------------------------
     # A ParallelHandler manages all child processes.
-    ph = ParrallelHandler(callback_onrun=dr.tensor_plot2D, callback_onclosing=dr.flush, frequency=20.0, timeout=30.0)
+    ph = ParrallelHandler(callback_onrun=dr.tensor_plot2D, callback_onclosing=dr.flush, frequency=20.0, timeout=30.0, target_method='spawn', daemon=True)
 
     #----------------------------------
     # Step 3: Attach layer/layers or full model
     #----------------------------------
-    ph.track_model(-1, {'model': model})
-    ph.track_layer(-1, {'classifier0_': model.classifier[0], 'classifier3_': model.classifier[3], 'classifier6_': model.classifier[6]})
+    ph.track_model(-1, {'model': model}, callback_transform=None)
+    ph.track_layer(-1, {'classifier0_': model.classifier[0], 'classifier3_': model.classifier[3], 'classifier6_': model.classifier[6]}, callback_transform=None)
 ```
 
 Furter calls in any part of the program can be done as follow:
@@ -74,6 +74,8 @@ Furter calls in any part of the program can be done as follow:
 **Note**: If the multiprocess start mode is fork, please create the processes before initializing CUDA or an exception is raised.
 
 **Additional Note**: A method to get all the valid handles is shown in **test/hook/test_automatic_hook.py** or in the examples.
+
+The library has been tested on Python 3.10.9 with a Linux OS (Ubuntu 20.04).  
 
 ---
 ## Example 
@@ -105,11 +107,23 @@ The default data recorder will create a video of the tensors tracked. The curren
 Tensors are passed to child process as CPU, clone, and detached to reduce the use of GPU memory.
 It introduces some time delay, but it should be compensated by decreasing the frequency in which the data is pushed to queue.  
 
+The library declares the following lines in pytorch_inspector/utils/DataPlot.py.  
+```
+matplotlib.use('Agg')
+plt.ion()
+plt.ioff()
+```
+
 ### Hint
-To run multiple processes on part of the same model: split the list of the layers.
+To run multiple processes on part of the same model: split the list of the layers.  
+New process are created as daemon, and the program may close before a video is finalized. Please consider using daemon=False.  
+```
+    ph = ParrallelHandler(callback_onrun=dr.tensor_plot2D, callback_onclosing=dr.flush, frequency=20.0, timeout=30.0, target_method='spawn', daemon=True)
+```
 
 ---
 ## Program Interruption
 
 Interrupting the main process may create corrupted videos (please check cv2.WriteVideo for more information).  
 It may also keep child process alive if created as spawn. Please set timeout greater than 0.
+

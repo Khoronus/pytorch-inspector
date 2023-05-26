@@ -44,10 +44,10 @@ def test_training():
     # Add internal unique_id
     print(f'cuda is initialized:{torch.cuda.is_initialized()}')
     dr0 = DataRecorder((640,480), 20., 100, 'output')
-    ph0 = ParrallelHandler(callback_onrun=dr0.tensor_plot2D, callback_onclosing=dr0.flush, frequency=20.0, max_elapsed_time=-1)
+    ph0 = ParrallelHandler(callback_onrun=dr0.tensor_plot2D, callback_onclosing=dr0.flush, frequency=20.0, timeout=30, target_method='spawn')
     ph = ParrallelHandler()
-    #ph = ParrallelHandler(callback=None, frequency=2.0, max_elapsed_time=30.0)
-    id, queue_to, queue_from, context = ph.track_model(0, {'model': model})
+    #ph = ParrallelHandler(callback=None, frequency=2.0, timeout=30.0, target_method='spawn')
+    id, queue_to, queue_from, context = ph.track_model(0, {'model': model}, callback_transform=None)
     #ph.track_layer(1, {'features2_': model.features[2], 'features5_': model.features[5], 'features12_': model.features[12]})
     #ph.track_layer(2, {'avgpool_': model.avgpool})
     #ph.track_layer(3, {'classifier0_': model.classifier[0], 'classifier3_': model.classifier[3], 'classifier6_': model.classifier[6]}) # select 0,3,6
@@ -61,7 +61,7 @@ def test_training():
     # Change the first value with:
     # -1 --> create a new process  
     # id --> attach to the created process
-    id, queue_to, queue_from, context = ph.track_layer(-1, list_valid_backward)
+    id, queue_to, queue_from, context = ph.track_layer(-1, list_valid_backward, callback_transform=None)
 
     # Move the model to GPU if available
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") # check if GPU is available
@@ -130,5 +130,4 @@ if __name__ == "__main__":
     torch.multiprocessing.set_start_method("spawn")
     print(f'cuda is initialized:{torch.cuda.is_initialized()}')
     test_training()
-    print('stop')
 

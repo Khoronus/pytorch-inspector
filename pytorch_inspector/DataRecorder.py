@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 
 from pytorch_inspector.utils.DataPlot import DataPlot
+from pytorch_inspector.utils.Decorators import *
 
 __all__ = ["DataRecorder"]
 
@@ -13,6 +14,7 @@ class DataRecorder():
     """
     Record passed data.
     """    
+    @exception_decorator
     def __init__(self, 
                  shape_expected : tuple, fps : float, maxframes : int, 
                  path_root : str):
@@ -37,20 +39,8 @@ class DataRecorder():
         # Container with the video writer associated
         self.internal_out = {}
 
-        try:
-            from pathlib import Path
-            Path(path_root).mkdir(parents=True, exist_ok=True)
-        except Exception as e:
-            import sys
-            exc_type, exc_value, exc_tb = sys.exc_info()
-            import traceback
-            stack_summary = traceback.extract_tb(exc_tb)
-            last_entry = stack_summary[-1]
-            file_name, line_number, func_name, text = last_entry
-            import inspect
-            print(f'{__name__}.{inspect.currentframe().f_code.co_name} ex occurred in {file_name}, line {line_number}, in {func_name}')
-            print(f'Line:{text}')
-            print(f'ex:{e}')
+        from pathlib import Path
+        Path(path_root).mkdir(parents=True, exist_ok=True)
 
     def flush(self):
         """
@@ -62,6 +52,7 @@ class DataRecorder():
             if self.internal_out[key_dict] is not None:
                 self.internal_out[key_dict].release()
 
+    @exception_decorator
     def tensor_plot2D(self, 
                       unique_id : int,
                       key : str, internal_message : str, message : str, 
@@ -84,76 +75,64 @@ class DataRecorder():
         - **message**: message to write on the image.
         - **input_data**: passed input to visualize.
         """
-        try:
-            # Check if the key was seen before, otherwise add it.
-            if key not in self.internal_counter:
-                self.internal_frames[key] = 0
-                self.internal_counter[key] = 0
-                self.internal_out[key] = None
+        # Check if the key was seen before, otherwise add it.
+        if key not in self.internal_counter:
+            self.internal_frames[key] = 0
+            self.internal_counter[key] = 0
+            self.internal_out[key] = None
 
-            # Check the data type
-            if isinstance(input_data, np.ndarray):
-                #tensor_np = input_data
-                print('EEE Wrong data type')
-            if isinstance(input_data, torch.Tensor):
-                if input_data == 'cpu':
-                    tensor_data = input_data.detach().squeeze(0)
-                else:
-                    tensor_data = input_data.cpu().detach().squeeze(0)
-
-            # Plot to figure
-            if tensor_data.dim() == 2:
-                fig = DataPlot.tensor_plot2D(tensor_data)
+        # Check the data type
+        if isinstance(input_data, np.ndarray):
+            #tensor_np = input_data
+            print('EEE Wrong data type')
+        if isinstance(input_data, torch.Tensor):
+            if input_data == 'cpu':
+                tensor_data = input_data.detach().squeeze(0)
             else:
-                minval=torch.min(tensor_data)
-                maxval=torch.max(tensor_data)
-                hist = torch.histc(tensor_data.cpu().detach(), bins=10, min=minval, max=maxval)
-                fig = DataPlot.plot_1D(hist.cpu().detach(), minval, maxval)
+                tensor_data = input_data.cpu().detach().squeeze(0)
 
-            # plot the image to a numpy array
-            image = DataPlot.plt2arr(fig)
-            # Fix color and shape
-            image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGB)
-            image = cv2.resize(image, self.shape_expected)
-            # write a message
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            position = (50,50)
-            fontScale = 0.5
-            fontColor = (255,0,0)
-            thickness = 1
-            lineType = 2
-            cv2.putText(image, internal_message, position, font, fontScale, fontColor, thickness, lineType) 
-            position = (50,75)
-            cv2.putText(image, message, position, font, fontScale, fontColor, thickness, lineType) 
+        # Plot to figure
+        if tensor_data.dim() == 2:
+            fig = DataPlot.tensor_plot2D(tensor_data)
+        else:
+            minval=torch.min(tensor_data)
+            maxval=torch.max(tensor_data)
+            hist = torch.histc(tensor_data.cpu().detach(), bins=10, min=minval, max=maxval)
+            fig = DataPlot.plot_1D(hist.cpu().detach(), minval, maxval)
 
-            # create a new video writer?
-            if self.internal_out[key] is None or self.internal_frames[key] == self.maxframes:
-                #print(f'key out:{key}')
-                self.internal_counter[key] = self.internal_counter[key] + 1
-                self.internal_frames[key] = 0
-                if self.internal_out[key] is not None:
-                    self.internal_out[key].release()
-                # mp4 | 0x7634706d for mp4 (it works in some machines)
-                fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
-                #fourcc = cv2.VideoWriter_fourcc(*'DIVX') # avi 
-                self.internal_out[key] = cv2.VideoWriter(self.path_root + '/' + 
-                                                    key + '_' + str(unique_id) + '_' + str(self.internal_counter[key]) + '_video.mp4',
-                                                    fourcc, self.fps, self.shape_expected)
+        # plot the image to a numpy array
+        image = DataPlot.plt2arr(fig)
+        # Fix color and shape
+        image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGB)
+        image = cv2.resize(image, self.shape_expected)
+        # write a message
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        position = (50,50)
+        fontScale = 0.5
+        fontColor = (255,0,0)
+        thickness = 1
+        lineType = 2
+        cv2.putText(image, internal_message, position, font, fontScale, fontColor, thickness, lineType) 
+        position = (50,75)
+        cv2.putText(image, message, position, font, fontScale, fontColor, thickness, lineType) 
 
-            # place the image in the video
-            self.internal_out[key].write(image)
-            plt.close()
+        # create a new video writer?
+        if self.internal_out[key] is None or self.internal_frames[key] == self.maxframes:
+            #print(f'key out:{key}')
+            self.internal_counter[key] = self.internal_counter[key] + 1
+            self.internal_frames[key] = 0
+            if self.internal_out[key] is not None:
+                self.internal_out[key].release()
+            # mp4 | 0x7634706d for mp4 (it works in some machines)
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
+            #fourcc = cv2.VideoWriter_fourcc(*'DIVX') # avi 
+            fname_out = self.path_root + '/' + key + '_' + str(unique_id) + '_' + str(self.internal_counter[key]) + '_video.mp4'
+            print(f'fname_out:{fname_out}')
+            self.internal_out[key] = cv2.VideoWriter(fname_out,
+                                                fourcc, self.fps, self.shape_expected)
 
-            self.internal_frames[key] = self.internal_frames[key] + 1
+        # place the image in the video
+        self.internal_out[key].write(image)
+        plt.close()
 
-        except Exception as e:
-            import sys
-            exc_type, exc_value, exc_tb = sys.exc_info()
-            import traceback
-            stack_summary = traceback.extract_tb(exc_tb)
-            last_entry = stack_summary[-1]
-            file_name, line_number, func_name, text = last_entry
-            import inspect
-            print(f'{__name__}.{inspect.currentframe().f_code.co_name} ex occurred in {file_name}, line {line_number}, in {func_name}')
-            print(f'Line:{text}')
-            print(f'ex:{e}')
+        self.internal_frames[key] = self.internal_frames[key] + 1

@@ -2,8 +2,9 @@ import atexit
 from typing import Any, Optional
 import torch
 
-from .MultiprocessingWriter import MultiprocessingWriter
-from .DataStruct import ProcessInfoData
+from pytorch_inspector.MultiprocessingWriter import MultiprocessingCtx, MultiprocessingWriterFork, MultiprocessingWriterSpawn
+from pytorch_inspector.DataStruct import ProcessInfoData
+from pytorch_inspector.utils.Decorators import *
 
 __all__ = ["ParrallelHandler"]
 
@@ -22,10 +23,13 @@ class ParrallelHandler(metaclass=SingletonMeta):
     """
     Singleton class to manage all processes instantiated by the calling program.
     """    
+    @exception_decorator
     def __init__(self, 
                  callback_onrun : Optional[Any],
                  callback_onclosing : Optional[Any],
-                 frequency : float, max_elapsed_time : float):
+                 frequency : float, timeout : float,
+                 target_method : str,
+                 daemon : bool = True):
 
         """
         Initialization keeps track of all the events created to close the processes once the program terminate.
@@ -33,7 +37,9 @@ class ParrallelHandler(metaclass=SingletonMeta):
         - **callback_onrun**: Callback function on running process.
         - **callback_onclosing**: Callback function when the process terminates.
         - **frequency**: Backpropagation tensor sampling recording.
-        - **max_elapsed_time**: Maximum time without receiving new data before timeout.
+        - **timeout**: Maximum time without receiving new data before timeout.
+        - **target_method**: Target method used to create a process (fork/spawn).
+        - **daemon**: Create the new process as deamon (True/False).
         """    
         self.events = []
         # Container for the counter of active messages passed between all the processes
@@ -42,10 +48,12 @@ class ParrallelHandler(metaclass=SingletonMeta):
         # passed to a child process at time.
         self.active_messages_counter = []
 
-        self.max_elapsed_time = max_elapsed_time
-        self.frequency = frequency
         self.callback_onrun = callback_onrun
         self.callback_onclosing = callback_onclosing
+        self.frequency = frequency
+        self.timeout = timeout
+        self.target_method = target_method
+        self.daemon = daemon
 
         # Internal message passed to all the active processes
         self.internal_message = 'empty'
@@ -55,20 +63,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
         self.container_process_info = dict()
         # Unique interna ID for new created process (NO PID)
         self.internal_unique_id = 0
-
-        try:
-            atexit.register(self.stop)
-        except Exception as e:
-            import sys
-            exc_type, exc_value, exc_tb = sys.exc_info()
-            import traceback
-            stack_summary = traceback.extract_tb(exc_tb)
-            last_entry = stack_summary[-1]
-            file_name, line_number, func_name, text = last_entry
-            import inspect
-            print(f'{__name__}.{inspect.currentframe().f_code.co_name} ex occurred in {file_name}, line {line_number}, in {func_name}')
-            print(f'Line:{text}')
-            print(f'ex:{e}')
+        atexit.register(self.stop)
 
     def __del__(self):
         """
@@ -78,27 +73,15 @@ class ParrallelHandler(metaclass=SingletonMeta):
         print('ParallelHandler.__del__')
         self.stop()
 
+    @exception_decorator
     def stop(self) -> None:
         """
         Stop running processes.
         """    
-        try:
-            print(f'ParallelHandler.stop:{self.events}')
-            for event in self.events:
-                if event is not None:
-                    event.set()
-        except Exception as e:
-            import sys
-            exc_type, exc_value, exc_tb = sys.exc_info()
-            import traceback
-            stack_summary = traceback.extract_tb(exc_tb)
-            last_entry = stack_summary[-1]
-            file_name, line_number, func_name, text = last_entry
-            import inspect
-            print(f'{__name__}.{inspect.currentframe().f_code.co_name} ex occurred in {file_name}, line {line_number}, in {func_name}')
-            print(f'Line:{text}')
-            print(f'ex:{e}')
-
+        print(f'ParallelHandler.stop:{self.events}')
+        for event in self.events:
+            if event is not None:
+                event.set()
 
     def set_internal_message(self, internal_message : str) -> None:
         """
@@ -112,110 +95,103 @@ class ParrallelHandler(metaclass=SingletonMeta):
         """
         self.pass_to_process = pass_to_process
 
-    def parallel_start_process_spawn(self, rank, args):
+    @exception_decorator
+    def parallel_start_process(self, args, start_method : str, daemon : bool):
         """
-        Start a process spawn.
+        Start a new process as fork or spawn.
         Args:
-        - **rank**: Rank of the process.
-        - **args**: Arguments to initialize the MultiprocessingWriter.
-        Note:
-        Spawn uses picle to serialize the arguments and pass them to the child processes.
-        However, pickle cannot serialize daemon processes, so they are ignored by spawn.
-        If the obj.daemon is True, it will never start and the program will run
-        without running the code.
+        - **args**: Configuration arguments for the class Process.
+        - **start_method**: Defines the starting method for the process (fork/spawn).
+        - **daemon**: Create the new process as deamon (True/False).
         """    
-        print(f'start_process[{rank}]_spawn args:{args}')
-        try:
-            # Create the process object inside the function
-            obj = MultiprocessingWriter(*args)
-            obj.start()
-        except Exception as e:
-            import sys
-            exc_type, exc_value, exc_tb = sys.exc_info()
-            import traceback
-            stack_summary = traceback.extract_tb(exc_tb)
-            last_entry = stack_summary[-1]
-            file_name, line_number, func_name, text = last_entry
-            import inspect
-            print(f'{__name__}.{inspect.currentframe().f_code.co_name} ex occurred in {file_name}, line {line_number}, in {func_name}')
-            print(f'Line:{text}')
-            print(f'ex:{e}')
+        print(f'start_process args:{args}')
+        # Create the process object inside the function
+        if start_method == 'fork':
+            obj = MultiprocessingWriterFork(*args)
+            print(f'WARNING: Method {start_method} may cause a deadlock if run with lightning-gpu or other CUDA process. Spawn is recommended.')
+        elif start_method == 'spawn':
+            obj = MultiprocessingWriterSpawn(*args)
+        else:
+            raise ValueError('Invalid choice')
+        obj.daemon=daemon
+        obj.start()
 
-    def parallel_start_process_fork(self, args):
-        """
-        Start a process fork.
-        Args:
-        - **args**: Arguments to initialize the MultiprocessingWriter.
-
-        Returns:
-        - The process
-        """    
-        try:
-            print(f'start_process args:{args}')
-            # Create the process object inside the function
-            obj = MultiprocessingWriter(*args)
-            obj.daemon = True
-            obj.start()
-            return obj
-        except Exception as e:
-            import sys
-            exc_type, exc_value, exc_tb = sys.exc_info()
-            import traceback
-            stack_summary = traceback.extract_tb(exc_tb)
-            last_entry = stack_summary[-1]
-            file_name, line_number, func_name, text = last_entry
-            import inspect
-            print(f'{__name__}.{inspect.currentframe().f_code.co_name} ex occurred in {file_name}, line {line_number}, in {func_name}')
-            print(f'Line:{text}')
-            print(f'ex:{e}')
-     
-
-    def new_process(self, unique_id):
+    def new_process(self, unique_id : int, target_method : str, daemon : bool) -> None:
         """
         Start a new process. The event, queue, and method are automatically initialized/selected.
         Args:
         - **unique_id**: Process unique identifier
-
+        - **target_method**: Target process method. Fork/Spawn are the possible choices. If None, it uses the start method.
+                             Warning: Fork may cause deadlock in some cases (i.e. lightning).
+        - **daemon**: Create the new process as deamon (True/False).
         Returns:
         - queue for the communication, context to track the process status.
         """    
-        event = torch.multiprocessing.Event()
+        # get the current start method
+        method = torch.multiprocessing.get_start_method()
+        print(f'current start method:{method}')
+        # get the selected method
+        if target_method is not None:
+            method = target_method
+        print(f'current selected method:{method}')
+
         # Create a queue object to share data between processes
         # Important : The to/from must be reversed respect the process
         # to -> from (main process)  
         # from <- to (child process)
-        queue_to = torch.multiprocessing.Queue()
-        queue_from = torch.multiprocessing.Queue()
-
-        # get the current start method
-        method = torch.multiprocessing.get_start_method()
-        print(f'current start method:{method}')
+        #queue_to = torch.multiprocessing.Queue()
+        #queue_from = torch.multiprocessing.Queue()
+        #event = torch.multiprocessing.Event()
+        if method == 'fork':
+            queue_to =  MultiprocessingCtx.ctx_fork.Queue()
+            queue_from = MultiprocessingCtx.ctx_fork.Queue()
+            event = MultiprocessingCtx.ctx_fork.Event()
+        elif method == 'spawn':
+            queue_to =  MultiprocessingCtx.ctx_spawn.Queue()
+            queue_from = MultiprocessingCtx.ctx_spawn.Queue()
+            event = MultiprocessingCtx.ctx_spawn.Event()
+        else:
+            raise Exception(f'ParallelHandler.new_process: Method [{method}] is not supported (only spawn/fork).')
 
         # Pass the arguments for creating the process object as a tuple
         contexts = []
-        args = (unique_id, event, queue_to, queue_from, self.max_elapsed_time, self.callback_onrun, self.callback_onclosing)
-        if method == 'spawn':
-            # Known issue github.com/pytorch/pytorch/issues/30461
-            # torch.multiprocessing.spawn fails when join=False
-            context = torch.multiprocessing.spawn(self.parallel_start_process_spawn, args=(args,), nprocs=1, join=False)
-            # Wait a message from the process
-            print('ParallelHandler.new_process:wait for the child process to be ready')
-            data_from_process = queue_from.get()    # necessary for synchronizatino with spawn process
-            print('ParallelHandler.new_process:child process is ready')
-            #import time
-            #time.sleep(3)  # <<< change this with some better solution. 2 ways queue?
-        elif method == 'fork':
-            if torch.cuda.is_initialized():
-                raise Exception('ParallelHandler.new_process: cannot fork if cuda is initialized. Please call before any cuda call (i.e. to(device)).')
-            context = self.parallel_start_process_fork(args=args)
-        else:
-            raise Exception(f'ParallelHandler.new_process: Method [{method}] is not supported (only spawn/fork).')
-        contexts.append(context)
+        args = (unique_id, event, queue_to, queue_from, self.timeout, self.callback_onrun, self.callback_onclosing)
+        #if method == 'spawn':
+        #    # Known issue github.com/pytorch/pytorch/issues/30461
+        #    # torch.multiprocessing.spawn fails when join=False
+        #    context = torch.multiprocessing.spawn(self.parallel_start_process_spawn, args=(args,), nprocs=1, join=False)
+        #    # Wait a message from the process
+        #    print('ParallelHandler.new_process:wait for the child process to be ready')
+        #    data_from_process = queue_from.get()    # necessary for synchronizatino with spawn process
+        #    print('ParallelHandler.new_process:child process is ready')
+        #    #import time
+        #    #time.sleep(3)  # <<< change this with some better solution. 2 ways queue?
+        #elif method == 'fork':
+        #    if torch.cuda.is_initialized():
+        #        raise Exception('ParallelHandler.new_process: cannot fork if cuda is initialized. Please call before any cuda call (i.e. to(device)).')
+        #    context = self.parallel_start_process_fork(args=args)
+        #    # Wait a message from the process
+        #    print('ParallelHandler.new_process:wait for the child process to be ready')
+        #    data_from_process = queue_from.get()    # necessary for synchronizatino with spawn process
+        #    print('ParallelHandler.new_process:child process is ready')
+        #else:
+        #    raise Exception(f'ParallelHandler.new_process: Method [{method}] is not supported (only spawn/fork).')
 
+        # Fork may cause DEADLOCK with lightning, spawn may work normally
+        context = self.parallel_start_process(args=args, start_method=method, daemon=daemon)
+        print('ParallelHandler.new_process:wait for the child process to be ready')
+        data_from_process = queue_from.get()    # necessary for synchronizatino with spawn process
+        print('ParallelHandler.new_process:child process is ready')
+
+        contexts.append(context)
         self.events.append(event)
+
         return queue_to, queue_from, contexts
 
-    def tensor_backpropagation_hook_wrapper(self, name, maxsize_queue, x, queue_to, queue_from, active_messages_counter):
+    @exception_decorator
+    def tensor_backpropagation_hook_wrapper(self, name, maxsize_queue, x, 
+                                            queue_to, queue_from, active_messages_counter,
+                                            callback_transform : Optional[Any]):
         """
         Wrapper to the torch hook handler. Additional arguments are passed.
         The current code try to record a tensor every N back propagation calls.
@@ -228,77 +204,55 @@ class ParrallelHandler(metaclass=SingletonMeta):
         - **queue_to**: Queue to exchange information to called processes.
         - **queue_from**: Queue to get information from called processes.
         - **active_messages_counter**: Container with the total number of messages passed to the child process for each key.
- 
-        Returns:
+        - **callback_transform**: How to transform the passed tensor
+         Returns:
         - hook for the backpropagation
         """    
         # register a tensor hook
         #print(f'tensor_backpropagation_hook_wrapper:{name}')
         # It counts how many times this hook has been called
         internal_counter = {name : 0}
-        active_messages = {name : 0}
         # Add an element to the queue only if the condition is true
         do_add_to_queue = True
         def hook(grad):
             try:
-                # check if the counter should be decreased
-                content = queue_from.get_nowait()
-                #print(f'content:{content} active_messages:{active_messages}')
-                active_messages_counter[content[0]] -= 1
-                #print(f'content:{content} type:{type(content)}')
+                if queue_from.qsize() > 0: 
+                    # check if the counter should be decreased
+                    content = queue_from.get_nowait()
+                    #print(f'content:{content} active_messages:{active_messages}')
+                    active_messages_counter[content[0]] -= 1
+                    #print(f'content:{content} type:{type(content)}')
             except Exception as e:
                 pass
 
-            try:
-                nonlocal do_add_to_queue
-                if queue_to.qsize() == 0: do_add_to_queue = True
+            nonlocal do_add_to_queue
+            if queue_to.qsize() == 0: do_add_to_queue = True
 
-                if internal_counter[name] % self.frequency == 0 and active_messages_counter[name] == 0:
-                    # put the tensor in the queue
-                    #print(f'{name} queue.qsize:{queue.qsize()}/{maxsize_queue}')
-                    if do_add_to_queue:
-                        if queue_to.qsize() > maxsize_queue:
-                            do_add_to_queue = False
-                            pass
+            if internal_counter[name] % self.frequency == 0 and active_messages_counter[name] == 0:
+                # put the tensor in the queue
+                #print(f'{name} queue.qsize:{queue.qsize()}/{maxsize_queue}')
+                if do_add_to_queue:
+                    if queue_to.qsize() > maxsize_queue:
+                        do_add_to_queue = False
+                        pass
+                    else:
+                        active_messages_counter[name] += 1
+                        if callback_transform is None:
+                            shared_data=x.cpu().clone().detach()
                         else:
-                            active_messages_counter[name] += 1
-                            info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
-                                                        message=str(internal_counter[name]), shared_data=x.cpu().clone().detach())
-                            queue_to.put_nowait(info_data)    
-                            #list_data = []
-                            #list_data.append(name)
-                            #list_data.append(self.internal_message)
-                            #list_data.append(str(internal_counter[name]))
-                            #list_data.append(x.cpu().clone().detach())
-                            #queue_to.put_nowait(list_data)    
+                            shared_data=callback_transform(x)
+                        info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
+                                                    message=str(internal_counter[name]), shared_data=shared_data)
+                        queue_to.put_nowait(info_data)    
 
-                    # The function adds also the gradient information
-                    #if queue.qsize() > maxsize_queue:
-                    #    pass
-                    #else:
-                    #    list_data = []
-                    #    list_data.append(name + 'grad')
-                    #    list_data.append(self.internal_message)
-                    #    list_data.append(str(internal_counter[name]))
-                    #    list_data.append(grad)#.cpu().clone().detach())
-                    #    queue.put_nowait(list_data)    
-
-                internal_counter[name] = internal_counter[name] + 1
-                return
-            except Exception as e:
-                import sys
-                exc_type, exc_value, exc_tb = sys.exc_info()
-                import traceback
-                stack_summary = traceback.extract_tb(exc_tb)
-                last_entry = stack_summary[-1]
-                file_name, line_number, func_name, text = last_entry
-                import inspect
-                print(f'{__name__}.{inspect.currentframe().f_code.co_name} ex occurred in {file_name}, line {line_number}, in {func_name}')
-                print(f'Line:{text}')
-                print(f'ex:{e}')
+            internal_counter[name] = internal_counter[name] + 1
+            return
         return hook
     
-    def layer_backpropagation_hook_wrapper(self, name, maxsize_queue, queue_to, queue_from, active_messages_counter):
+    @exception_decorator
+    def layer_backpropagation_hook_wrapper(self, name, maxsize_queue, 
+                                           queue_to, queue_from, active_messages_counter, 
+                                           callback_transform : Optional[Any]):
         """
         Wrapper to the torch hook handler for layers. Additional arguments are passed.
         The current code try to record information every N back propagation calls.
@@ -309,7 +263,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
         - **queue_to**: Queue to exchange information to called processes.
         - **queue_from**: Queue to get information from called processes.
         - **active_messages_counter**: Container with the total number of messages passed to the child process for each key.
-
+        - **callback_transform**: How to transform the passed tensor
         Returns:
         - hook for the backpropagation
         """    
@@ -323,59 +277,46 @@ class ParrallelHandler(metaclass=SingletonMeta):
         # register a tensor hook
         def hook(module, grad_input, grad_output):
             try:
-                # check if the counter should be decreased
-                content = queue_from.get_nowait()
-                #print(f'content:{content} active_messages:{active_messages}')
-                active_messages_counter[content[0]] -= 1
-                #print(f'content:{content} type:{type(content)}')
+                if queue_from.qsize() > 0: 
+                    # check if the counter should be decreased
+                    content = queue_from.get_nowait()
+                    #print(f'content:{content} active_messages:{active_messages}')
+                    active_messages_counter[content[0]] -= 1
+                    #print(f'content:{content} type:{type(content)}')
             except Exception as e:
                 pass
 
-            try:
-                if grad_output is None:
-                    return
-                
-                #print(f'name:{name} active_messages:{active_messages}')
+            if grad_output is None:
+                return hook
 
-                nonlocal do_add_to_queue
-                if queue_to.qsize() == 0: 
-                    #print(f'Ado_add_to_queue:{do_add_to_queue}')
-                    do_add_to_queue = True
-                #print(f'Ado_add_to_queue:{do_add_to_queue} -- {name} queue.qsize:{queue.qsize()}/{maxsize_queue}')
-                if internal_counter[name] % self.frequency == 0 and active_messages_counter[name] == 0:
-                    # Put the obj in the queue
-                    if do_add_to_queue:
-                        if queue_to.qsize() > maxsize_queue:
-                            do_add_to_queue = False
-                            pass
+            nonlocal do_add_to_queue
+            if queue_to.qsize() == 0: 
+                #print(f'Ado_add_to_queue:{do_add_to_queue}')
+                do_add_to_queue = True
+            #print(f'Ado_add_to_queue:{do_add_to_queue} -- {name} queue.qsize:{queue.qsize()}/{maxsize_queue}')
+            if internal_counter[name] % self.frequency == 0 and active_messages_counter[name] == 0:
+                # Put the obj in the queue
+                if do_add_to_queue:
+                    if queue_to.qsize() > maxsize_queue:
+                        do_add_to_queue = False
+                        pass
+                    else:
+                        active_messages_counter[name] += 1
+                        if callback_transform is None:
+                            shared_data=grad_output[0].cpu().clone().detach()
                         else:
-                            active_messages_counter[name] += 1
-                            info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
-                                                        message=str(internal_counter[name]), shared_data=grad_output[0].cpu().clone().detach())
-                            queue_to.put_nowait(info_data)    
-                            #list_data = []
-                            #list_data.append(name)
-                            #list_data.append(self.internal_message)
-                            #list_data.append(str(internal_counter[name]))
-                            #list_data.append(grad_output[0].cpu().clone().detach())
-                            #queue_to.put_nowait(list_data)    
-            
-                internal_counter[name] = internal_counter[name] + 1
-                return
-            except Exception as e:
-                import sys
-                exc_type, exc_value, exc_tb = sys.exc_info()
-                import traceback
-                stack_summary = traceback.extract_tb(exc_tb)
-                last_entry = stack_summary[-1]
-                file_name, line_number, func_name, text = last_entry
-                import inspect
-                print(f'{__name__}.{inspect.currentframe().f_code.co_name} ex occurred in {file_name}, line {line_number}, in {func_name}')
-                print(f'Line:{text}')
-                print(f'ex:{e}')
+                            shared_data=callback_transform(grad_output[0])
+                        info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
+                                                    message=str(internal_counter[name]), shared_data=shared_data)
+                        queue_to.put_nowait(info_data)    
+        
+            internal_counter[name] = internal_counter[name] + 1
         return hook
 
-    def model_forwardpropagation_hook_wrapper(self, name, maxsize_queue, queue_to, queue_from, active_messages_counter):
+    @exception_decorator
+    def model_forwardpropagation_hook_wrapper(self, name, maxsize_queue, 
+                                              queue_to, queue_from, active_messages_counter,
+                                              callback_transform : Optional[Any]):
         """
         Wrapper to the torch hook handler for layers. Additional arguments are passed.
         The current code try to record information every N forward propagation calls.
@@ -385,8 +326,8 @@ class ParrallelHandler(metaclass=SingletonMeta):
                              in the process x 2.
         - **queue_to**: Queue to exchange information to called processes.
         - **queue_from**: Queue to get information from called processes.
-         - **active_messages_counter**: Container with the total number of messages passed to the child process for each key.
-
+        - **active_messages_counter**: Container with the total number of messages passed to the child process for each key.
+        - **callback_transform**: How to transform the passed tensor
         Returns:
         - hook for the forward propagation
         """    
@@ -396,59 +337,51 @@ class ParrallelHandler(metaclass=SingletonMeta):
         # Add an element to the queue only if the condition is true
         do_add_to_queue = True
         def hook(module, input, output):
+            
             try:
-                # check if the counter should be decreased
-                content = queue_from.get_nowait()
-                #print(f'content:{content} active_messages:{active_messages}')
-                active_messages_counter[content[0]] -= 1
-                #print(f'content:{content} type:{type(content)}')
+                if queue_from.qsize() > 0: 
+                    # check if the counter should be decreased
+                    content = queue_from.get_nowait()
+                    #print(f'content:{content} active_messages:{active_messages}')
+                    active_messages_counter[content[0]] -= 1
+                    #print(f'content:{content} type:{type(content)}')
             except Exception as e:
                 pass
 
-            try:
-                if output is None:
-                    return
+            if output is None:
+                return hook
 
-                nonlocal do_add_to_queue
-                if queue_to.qsize() == 0: 
-                    #print(f'Bdo_add_to_queue:{do_add_to_queue}')
-                    do_add_to_queue = True
-                #print(f'Bdo_add_to_queue:{do_add_to_queue} -- {name} queue.qsize:{queue.qsize()}/{maxsize_queue}')
-                if self.pass_to_process and internal_counter[name] % self.frequency == 0 and active_messages_counter[name] == 0:
-                    #print(f'layer hook:{name} grad_output:{len(grad_output)}')
-                    # Put the obj in the queue
-                    if do_add_to_queue:
-                        if queue_to.qsize() > maxsize_queue:
-                            do_add_to_queue = False
-                            pass
+            nonlocal do_add_to_queue
+            if queue_to.qsize() == 0: 
+                #print(f'Bdo_add_to_queue:{do_add_to_queue}')
+                do_add_to_queue = True
+            #print(f'do_add_to_queue:{do_add_to_queue} -- {name} queue.qsize:{queue_to.qsize()}/{maxsize_queue}')
+            if self.pass_to_process and internal_counter[name] % self.frequency == 0 and active_messages_counter[name] == 0:
+                # Put the obj in the queue
+                if do_add_to_queue:
+                    if queue_to.qsize() > maxsize_queue:
+                        do_add_to_queue = False
+                        pass
+                    else:
+                        active_messages_counter[name] += 1
+
+                        output_data = output
+                        if isinstance(output, torch.Tensor) == False:
+                            output_data = output[0]
+                        #print(f'output_data:{output_data} grad:{g}')
+                        if callback_transform is None:
+                            shared_data=output_data.cpu().clone().detach()
                         else:
-                            active_messages_counter[name] += 1
-                            #list_data = []
-                            #list_data.append(name)
-                            #list_data.append(self.internal_message)
-                            #list_data.append(str(internal_counter[name]))
-                            #list_data.append(output.cpu().clone().detach())
-                            #queue_to.put_nowait(list_data)    
-                            info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
-                                                        message=str(internal_counter[name]), shared_data=output.cpu().clone().detach())
-                            queue_to.put_nowait(info_data)    
+                            shared_data=callback_transform(output_data)                            
+                        info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
+                                                    message=str(internal_counter[name]), shared_data=shared_data)
+                        queue_to.put_nowait(info_data)    
 
-                internal_counter[name] = internal_counter[name] + 1
-                return
-            except Exception as e:
-                import sys
-                exc_type, exc_value, exc_tb = sys.exc_info()
-                import traceback
-                stack_summary = traceback.extract_tb(exc_tb)
-                last_entry = stack_summary[-1]
-                file_name, line_number, func_name, text = last_entry
-                import inspect
-                print(f'{__name__}.{inspect.currentframe().f_code.co_name} ex occurred in {file_name}, line {line_number}, in {func_name}')
-                print(f'Line:{text}')
-                print(f'ex:{e}')
+            internal_counter[name] = internal_counter[name] + 1
         return hook
 
-    def track_tensor(self, unique_id_connect_to, list_tensors):#, tensors_hook_mode):
+    @exception_decorator
+    def track_tensor(self, unique_id_connect_to, list_tensors, callback_transform : Optional[Any]):#, tensors_hook_mode):
         """
         Automatically creates the hook and processes for the list of tensors to track.
         The tensors hook only backpropagation.
@@ -459,191 +392,157 @@ class ParrallelHandler(metaclass=SingletonMeta):
                                  If no matching name is found, it uses the backpropagation.
                                  Supported mode:
                                  b : backpropagation
+        - **callback_transform**: How to transform the passed tensor
         Returns:
         - the given unique_id, queue for the communication (to,from), context to track the process status.
         """    
-        try:
-            #print(f'track_tensor:{list_tensors}')
-            queue_to, queue_from, contexts = None, None, None
-            # Get the list of the names
-            list_names = []
-            for name, value in list_tensors.items():
-                if isinstance(value, torch.Tensor) and value.requires_grad is False:
-                    print(f'ParallelHandler.track_tensor warning:{name} requires_grad forced to True to support hook')
-                    value.requires_grad_(True)
-                #print(f'name:{name} value:{value}')
-                list_names.append(name)
+        #print(f'track_tensor:{list_tensors}')
+        queue_to, queue_from, contexts = None, None, None
+        # Get the list of the names
+        list_names = []
+        for name, value in list_tensors.items():
+            if isinstance(value, torch.Tensor) and value.requires_grad is False:
+                print(f'ParallelHandler.track_tensor warning:{name} requires_grad forced to True to support hook')
+                value.requires_grad_(True)
+            #print(f'name:{name} value:{value}')
+            list_names.append(name)
 
-            #print(f'# list_names:{len(list_names)}')
+        #print(f'# list_names:{len(list_names)}')
 
-            # at least 1 tensor to track
-            if len(list_names) > 0:
-                # start the new process or connect to
-                if unique_id_connect_to in self.container_process_info:
-                    unique_id = self.internal_unique_id
-                    queue_to = self.container_process_info[unique_id]['queue_to']
-                    queue_from = self.container_process_info[unique_id]['queue_from']
-                else:
-                    unique_id = self.internal_unique_id
-                    self.internal_unique_id += 1
-                    self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
-                    queue_to, queue_from, contexts = self.new_process(unique_id)
-                    # contexts cannot be added due to the following error "cannot pickle 'weakref.ReferenceType' object"
-                    # collect the process information
-                    self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
-
-                # new counter for the passed names
-                dict_counter = dict()
-                #for i in range(len(list_names)):
-                #    dict_counter[list_names[i]] = 0
-                dict_counter = {list_names[i]:0 for i in range(len(list_names))}
-                self.active_messages_counter.append(dict_counter)
-
-                # create the hook
-                for name, value in list_tensors.items():
-                    value.register_hook(self.tensor_backpropagation_hook_wrapper(name, len(list_names) * 4, value, 
-                                                                                 queue_to, queue_from, self.active_messages_counter[-1]))
+        # at least 1 tensor to track
+        if len(list_names) > 0:
+            # start the new process or connect to
+            if unique_id_connect_to in self.container_process_info:
+                unique_id = self.internal_unique_id
+                queue_to = self.container_process_info[unique_id]['queue_to']
+                queue_from = self.container_process_info[unique_id]['queue_from']
             else:
-                print('ParallelHandler.track_tensor warning:unable to hook any tensor')
+                unique_id = self.internal_unique_id
+                self.internal_unique_id += 1
+                self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
+                queue_to, queue_from, contexts = self.new_process(unique_id, self.target_method, self.daemon)
+                # contexts cannot be added due to the following error "cannot pickle 'weakref.ReferenceType' object"
+                # collect the process information
+                self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
 
-        except Exception as e:
-            import sys
-            exc_type, exc_value, exc_tb = sys.exc_info()
-            import traceback
-            stack_summary = traceback.extract_tb(exc_tb)
-            last_entry = stack_summary[-1]
-            file_name, line_number, func_name, text = last_entry
-            import inspect
-            print(f'{__name__}.{inspect.currentframe().f_code.co_name} ex occurred in {file_name}, line {line_number}, in {func_name}')
-            print(f'Line:{text}')
-            print(f'ex:{e}')
+            # new counter for the passed names
+            dict_counter = dict()
+            #for i in range(len(list_names)):
+            #    dict_counter[list_names[i]] = 0
+            dict_counter = {list_names[i]:0 for i in range(len(list_names))}
+            self.active_messages_counter.append(dict_counter)
+
+            # create the hook
+            for name, value in list_tensors.items():
+                value.register_hook(self.tensor_backpropagation_hook_wrapper(name, len(list_names) * 4, value, 
+                                                                                queue_to, queue_from, self.active_messages_counter[-1],
+                                                                                callback_transform))
+        else:
+            print('ParallelHandler.track_tensor warning:unable to hook any tensor')
 
         return unique_id, queue_to, queue_from, contexts
 
-
-    def track_layer(self, unique_id_connect_to, list_layers):
+    @exception_decorator
+    def track_layer(self, unique_id_connect_to, list_layers, callback_transform : Optional[Any]):
         """
         Automatically creates the hook and processes for the list of layers to track.
         The layer hook only backpropagation.
         Args:
         - **unique_id_connect_to**: Process unique identifier to connect to (if it exists).
         - **list_layers**: List of layers to track {'a_layer':a_layer,'b_layer':b_layer}
+        - **callback_transform**: How to transform the passed tensor
 
         Returns:
         - the given unique_id, queue for the communication (to,from), context to track the process status.
         """    
-        try:
-            queue_to, queue_from, contexts = None, None, None
-            # Get the list of the names
-            list_names = []
-            for name, value in list_layers.items():
-                list_names.append(name)
+        queue_to, queue_from, contexts = None, None, None
+        # Get the list of the names
+        list_names = []
+        for name, value in list_layers.items():
+            list_names.append(name)
 
-            # at least 1 tensor to track
-            if len(list_names) > 0:
-                # start the new process or connect to
-                if unique_id_connect_to in self.container_process_info:
-                    unique_id = unique_id_connect_to
-                    queue_to = self.container_process_info[unique_id]['queue_to']
-                    queue_from = self.container_process_info[unique_id]['queue_from']
-                else:
-                    unique_id = self.internal_unique_id
-                    self.internal_unique_id += 1
-                    self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
-                    queue_to, queue_from, contexts = self.new_process(unique_id)
-                    # contexts cannot be added due to the following error "cannot pickle 'weakref.ReferenceType' object"
-                    # collect the process information
-                    self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
-
-                # new counter for the passed names
-                dict_counter = dict()
-                #for i in range(len(list_names)):
-                #    dict_counter[list_names[i]] = 0
-                dict_counter = {list_names[i]:0 for i in range(len(list_names))}
-                self.active_messages_counter.append(dict_counter)
-
-                # create the hook
-                for name, value in list_layers.items():
-                    value.register_full_backward_hook(self.layer_backpropagation_hook_wrapper(name, len(list_names) * 2, 
-                                                                                              queue_to, queue_from, self.active_messages_counter[-1]))
+        # at least 1 tensor to track
+        if len(list_names) > 0:
+            # start the new process or connect to
+            if unique_id_connect_to in self.container_process_info:
+                unique_id = unique_id_connect_to
+                queue_to = self.container_process_info[unique_id]['queue_to']
+                queue_from = self.container_process_info[unique_id]['queue_from']
             else:
-                print('ParallelHandler.track_layer warning:unable to hook any layer')
+                unique_id = self.internal_unique_id
+                self.internal_unique_id += 1
+                self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
+                queue_to, queue_from, contexts = self.new_process(unique_id, self.target_method, self.daemon)
+                # contexts cannot be added due to the following error "cannot pickle 'weakref.ReferenceType' object"
+                # collect the process information
+                self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
 
-        except Exception as e:
-            import sys
-            exc_type, exc_value, exc_tb = sys.exc_info()
-            import traceback
-            stack_summary = traceback.extract_tb(exc_tb)
-            last_entry = stack_summary[-1]
-            file_name, line_number, func_name, text = last_entry
-            import inspect
-            print(f'{__name__}.{inspect.currentframe().f_code.co_name} ex occurred in {file_name}, line {line_number}, in {func_name}')
-            print(f'Line:{text}')
-            print(f'ex:{e}')
+            # new counter for the passed names
+            dict_counter = dict()
+            #for i in range(len(list_names)):
+            #    dict_counter[list_names[i]] = 0
+            dict_counter = {list_names[i]:0 for i in range(len(list_names))}
+            self.active_messages_counter.append(dict_counter)
+
+            # create the hook
+            for name, value in list_layers.items():
+                value.register_full_backward_hook(self.layer_backpropagation_hook_wrapper(name, len(list_names) * 2, 
+                                                                                            queue_to, queue_from, self.active_messages_counter[-1],
+                                                                                            callback_transform))
+        else:
+            print('ParallelHandler.track_layer warning:unable to hook any layer')
 
         return unique_id, queue_to, queue_from, contexts
 
-
-    def track_model(self, unique_id_connect_to, list_models):
+    @exception_decorator
+    def track_model(self, unique_id_connect_to, list_models, callback_transform : Optional[Any]):
         """
         Automatically creates the hook and processes for the list of layers to track.
         The layer hook only forward propagation.
         Args:
         - **unique_id_connect_to**: Process unique identifier to connect to (if it exists).
         - **list_models**: List of models to track {'a_model':a_model,'b_model':b_model}
+        - **callback_transform**: How to transform the passed tensor
 
         Returns:
         - the given unique_id, queue for the communication (to,from), context to track the process status.
         """    
-        try:
+        #print(f'track_model:{list_models}')
+        queue_to, queue_from, contexts = None, None, None
+        # Get the list of the names
+        list_names = []
+        for name, value in list_models.items():
+            list_names.append(name)
 
-            #print(f'track_model:{list_models}')
-            queue_to, queue_from, contexts = None, None, None
-            # Get the list of the names
-            list_names = []
-            for name, value in list_models.items():
-                list_names.append(name)
-
-            # at least 1 tensor to track
-            if len(list_names) > 0:
-                # start the new process or connect to
-                if unique_id_connect_to in self.container_process_info:
-                    unique_id = unique_id_connect_to
-                    queue_to = self.container_process_info[unique_id]['queue_to']
-                    queue_from = self.container_process_info[unique_id]['queue_from']
-                else:
-                    unique_id = self.internal_unique_id
-                    self.internal_unique_id += 1
-                    self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
-                    queue_to, queue_from, contexts = self.new_process(unique_id)
-                    # contexts cannot be added due to the following error "cannot pickle 'weakref.ReferenceType' object"
-                    # collect the process information
-                    self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
-
-                # new counter for the passed names
-                dict_counter = dict()
-                #for i in range(len(list_names)):
-                #    dict_counter[list_names[i]] = 0
-                dict_counter = {list_names[i]:0 for i in range(len(list_names))}
-                self.active_messages_counter.append(dict_counter)
-
-                # create the hook
-                for name, value in list_models.items():
-                    value.register_forward_hook(self.model_forwardpropagation_hook_wrapper(name, len(list_names) * 2, 
-                                                                                           queue_to, queue_from, self.active_messages_counter[-1]))
+        # at least 1 tensor to track
+        if len(list_names) > 0:
+            # start the new process or connect to
+            if unique_id_connect_to in self.container_process_info:
+                unique_id = unique_id_connect_to
+                queue_to = self.container_process_info[unique_id]['queue_to']
+                queue_from = self.container_process_info[unique_id]['queue_from']
             else:
-                print('ParallelHandler.track_model warning:unable to hook any layer')
+                unique_id = self.internal_unique_id
+                self.internal_unique_id += 1
+                self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
+                queue_to, queue_from, contexts = self.new_process(unique_id, self.target_method, self.daemon)
+                # contexts cannot be added due to the following error "cannot pickle 'weakref.ReferenceType' object"
+                # collect the process information
+                self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
 
-        except Exception as e:
-            import sys
-            exc_type, exc_value, exc_tb = sys.exc_info()
-            import traceback
-            stack_summary = traceback.extract_tb(exc_tb)
-            last_entry = stack_summary[-1]
-            file_name, line_number, func_name, text = last_entry
-            import inspect
-            print(f'{__name__}.{inspect.currentframe().f_code.co_name} ex occurred in {file_name}, line {line_number}, in {func_name}')
-            print(f'Line:{text}')
-            print(f'ex:{e}')
+            # new counter for the passed names
+            dict_counter = dict()
+            #for i in range(len(list_names)):
+            #    dict_counter[list_names[i]] = 0
+            dict_counter = {list_names[i]:0 for i in range(len(list_names))}
+            self.active_messages_counter.append(dict_counter)
+
+            # create the hook
+            for name, value in list_models.items():
+                value.register_forward_hook(self.model_forwardpropagation_hook_wrapper(name, len(list_names) * 2, 
+                                                                                        queue_to, queue_from, self.active_messages_counter[-1],
+                                                                                        callback_transform))
+        else:
+            print('ParallelHandler.track_model warning:unable to hook any layer')
 
         return unique_id, queue_to, queue_from, contexts

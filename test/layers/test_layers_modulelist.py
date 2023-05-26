@@ -105,8 +105,8 @@ def get_layers_from_model():
 
     # Backpropagation
     try:
-        ph = ParrallelHandler(callback_onrun=None, callback_onclosing=None, frequency=20.0, max_elapsed_time=30.0)
-        ph.track_layer(0, list_valid_backward)
+        ph = ParrallelHandler(callback_onrun=None, callback_onclosing=None, frequency=20.0, timeout=30.0, target_method=None)
+        ph.track_layer(0, list_valid_backward, callback_transform=None)
         outputs = model(input_to_test)
         print(model)
         print(outputs.shape)

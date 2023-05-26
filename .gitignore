@@ -162,6 +162,7 @@ cython_debug/
 # Custom folders
 data/
 output/
+lightning_logs/
 
 # Custom files
 *.mp4
