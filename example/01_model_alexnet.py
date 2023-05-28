@@ -53,7 +53,7 @@ def test_training():
     #ph.track_layer(3, {'classifier0_': model.classifier[0], 'classifier3_': model.classifier[3], 'classifier6_': model.classifier[6]}) # select 0,3,6
     # Input source to pass to the model, used to test the hook
     input_to_test = torch.randn(1, 3, 224, 224)
-    list_valid_forward, list_valid_backward = ModelExplorer.get_hook_layers(model, input_to_test)
+    list_valid_forward, list_valid_backward = ModelExplorer.get_hook_layers(model, [input_to_test])
     print('##################')
     print(f'list_valid list_valid_forward:{list_valid_forward}')
     print('##################')

@@ -97,7 +97,7 @@ def get_layers_from_model():
 
     # Input source to pass to the model, used to test the hook
     input_to_test = torch.rand([700])
-    list_valid_forward, list_valid_backward = ModelExplorer.get_hook_layers(model, input_to_test)
+    list_valid_forward, list_valid_backward = ModelExplorer.get_hook_layers(model, [input_to_test])
     print('##################')
     print(f'list_valid list_valid_backward:{list_valid_backward}')
     print('##################')
