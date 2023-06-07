@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import matplotlib
+from sklearn.manifold import TSNE
 matplotlib.use('Agg')
 plt.ion()
 plt.ioff()
@@ -128,3 +129,43 @@ class DataPlot():
         return fig
         # Save the figure as image
         #plt.savefig(fname_out)
+
+    @staticmethod
+    def tsne(X):
+        X_flat = np.array(X).reshape(X.shape[0], -1)
+        tsne = TSNE(n_components=2, perplexity=30, learning_rate=200)
+        X_tsne = tsne.fit_transform(X_flat)
+        return X_tsne
+
+    @staticmethod
+    def plot_tsne(tensor_data):
+        X = tensor_data.numpy()
+        X_tsne = DataPlot.tsne(X)
+        # Create a surface plot
+        fig = plt.figure(dpi=300)
+        plt.scatter(X_tsne[:, 0], X_tsne[:, 1])
+        return fig
+
+    @staticmethod
+    def plot_pca(tensor_data):
+        tensor = tensor_data
+        # Reshape the tensor to have 2 dimensions
+        tensor = tensor.view(tensor.size(0) * tensor.size(1), -1)
+        # Center the tensor
+        tensor -= tensor.mean(dim=0)
+        # Compute the covariance matrix
+        cov = torch.mm(tensor.t(), tensor) / (tensor.size(0) - 1)
+        # Compute the eigenvectors and eigenvalues of the covariance matrix
+        eigenvalues, eigenvectors = torch.linalg.eig(cov)
+        eigenvalues = torch.abs(eigenvalues[:])
+        # Sort the eigenvectors by decreasing eigenvalues
+        _, idx = torch.sort(eigenvalues, descending=True)
+        eigenvalues, eigenvectors = eigenvalues[idx], eigenvectors[:, idx]
+        # Project the tensor onto the first two principal components
+        pca_result = torch.mm(tensor, eigenvectors[:, :2].real)
+        # Reshape the result to have the original dimensions
+        #pca_result = pca_result.view(*tensor_data.shape[:-1], -1)
+        # Create a surface plot
+        fig = plt.figure(dpi=300)
+        plt.scatter(pca_result[..., 0], pca_result[..., 1])
+        return fig

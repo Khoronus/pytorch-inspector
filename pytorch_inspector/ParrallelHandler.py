@@ -63,6 +63,8 @@ class ParrallelHandler(metaclass=SingletonMeta):
         self.container_process_info = dict()
         # Unique interna ID for new created process (NO PID)
         self.internal_unique_id = 0
+        # Unique status to define if the class is enabled.
+        self.enabled = True
         atexit.register(self.stop)
 
     def __del__(self):
@@ -78,10 +80,40 @@ class ParrallelHandler(metaclass=SingletonMeta):
         """
         Stop running processes.
         """    
-        print(f'ParallelHandler.stop:{self.events}')
+        #print(f'ParallelHandler.stop:{self.events}')
         for event in self.events:
             if event is not None:
                 event.set()
+
+    def set_enabled(self, enabled) -> None:
+        """
+        It set the enable status of the class.
+        The creation/attachment of new process is possible only if enable is True.
+        Args:
+        - **enabled**: If True the processes will be created. No, otherwise.
+        """    
+        self.enabled = enabled
+
+    @exception_decorator
+    def get_last_key(self):
+        """
+        It gets the last keys insert in the container process info.
+        Returns:
+        - It returns the last key if the container has at least 1 element. None otherwise.
+        """    
+        last_index = len(self.container_process_info) - 1
+        if last_index < 0:
+            return None
+        return list(self.container_process_info.keys())[-1]
+
+    @exception_decorator
+    def get_internal_unique_id(self):
+        """
+        It gets the unique internal ID assigned to the process (not PID).
+        Returns:
+        - The last internal numerical ID assigned to last process. -1 if none assigned yet. 
+        """    
+        return self.internal_unique_id - 1
 
     def set_internal_message(self, internal_message : str) -> None:
         """
@@ -388,6 +420,39 @@ class ParrallelHandler(metaclass=SingletonMeta):
         return hook
 
     @exception_decorator
+    def call_process(self, list_names, unique_id_connect_to):
+        """
+        It creates or connect to a process.
+        Args:
+        - **list_names**: Container with the list of names to track
+        - **unique_id_connect_to**: Process unique identifier to connect to (if it exists).
+        Returns:
+        - The given unique_id, queue for the communication (to,from), context to track the process status.
+        """    
+        # start the new process or connect to
+        queue_to, queue_from, contexts = None, None, None
+        # start the new process or connect to
+        if unique_id_connect_to in self.container_process_info:
+            unique_id = unique_id_connect_to
+            queue_to = self.container_process_info[unique_id]['queue_to']
+            queue_from = self.container_process_info[unique_id]['queue_from']
+        else:
+            unique_id = self.internal_unique_id
+            self.internal_unique_id += 1
+            #self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
+            queue_to, queue_from, contexts = self.new_process(unique_id, self.target_method, self.daemon)
+            # contexts cannot be added due to the following error "cannot pickle 'weakref.ReferenceType' object"
+            # collect the process information
+            self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
+            # new counter for the passed names
+            dict_counter = dict()
+            #for i in range(len(list_names)):
+            #    dict_counter[list_names[i]] = 0
+            dict_counter = {list_names[i]:0 for i in range(len(list_names))}
+            self.active_messages_counter.append(dict_counter)
+        return unique_id, queue_to, queue_from, contexts
+
+    @exception_decorator
     def track_tensor(self, unique_id_connect_to, list_tensors, callback_transform : Optional[Any]):#, tensors_hook_mode):
         """
         Automatically creates the hook and processes for the list of tensors to track.
@@ -401,10 +466,14 @@ class ParrallelHandler(metaclass=SingletonMeta):
                                  b : backpropagation
         - **callback_transform**: How to transform the passed tensor
         Returns:
-        - the given unique_id, queue for the communication (to,from), context to track the process status.
+        - The given unique_id, queue for the communication (to,from), context to track the process status.
         """    
+        if self.enabled == False:
+            return None, None, None, None
+
         #print(f'track_tensor:{list_tensors}')
         queue_to, queue_from, contexts = None, None, None
+
         # Get the list of the names
         list_names = []
         for name, value in list_tensors.items():
@@ -419,18 +488,19 @@ class ParrallelHandler(metaclass=SingletonMeta):
         # at least 1 tensor to track
         if len(list_names) > 0:
             # start the new process or connect to
-            if unique_id_connect_to in self.container_process_info:
-                unique_id = self.internal_unique_id
-                queue_to = self.container_process_info[unique_id]['queue_to']
-                queue_from = self.container_process_info[unique_id]['queue_from']
-            else:
-                unique_id = self.internal_unique_id
-                self.internal_unique_id += 1
-                self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
-                queue_to, queue_from, contexts = self.new_process(unique_id, self.target_method, self.daemon)
-                # contexts cannot be added due to the following error "cannot pickle 'weakref.ReferenceType' object"
-                # collect the process information
-                self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
+            #if unique_id_connect_to in self.container_process_info:
+            #    unique_id = unique_id_connect_to
+            #    queue_to = self.container_process_info[unique_id]['queue_to']
+            #    queue_from = self.container_process_info[unique_id]['queue_from']
+            #else:
+            #    unique_id = self.internal_unique_id
+            #    self.internal_unique_id += 1
+            #    self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
+            #    queue_to, queue_from, contexts = self.new_process(unique_id, self.target_method, self.daemon)
+            #    # contexts cannot be added due to the following error "cannot pickle 'weakref.ReferenceType' object"
+            #    # collect the process information
+            #    self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
+            unique_id, queue_to, queue_from, contexts = self.call_process(list_names, unique_id_connect_to)
 
             # new counter for the passed names
             dict_counter = dict()
@@ -462,6 +532,9 @@ class ParrallelHandler(metaclass=SingletonMeta):
         Returns:
         - the given unique_id, queue for the communication (to,from), context to track the process status.
         """    
+        if self.enabled == False:
+            return None, None, None, None
+
         queue_to, queue_from, contexts = None, None, None
         # Get the list of the names
         list_names = []
@@ -471,18 +544,19 @@ class ParrallelHandler(metaclass=SingletonMeta):
         # at least 1 tensor to track
         if len(list_names) > 0:
             # start the new process or connect to
-            if unique_id_connect_to in self.container_process_info:
-                unique_id = unique_id_connect_to
-                queue_to = self.container_process_info[unique_id]['queue_to']
-                queue_from = self.container_process_info[unique_id]['queue_from']
-            else:
-                unique_id = self.internal_unique_id
-                self.internal_unique_id += 1
-                self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
-                queue_to, queue_from, contexts = self.new_process(unique_id, self.target_method, self.daemon)
-                # contexts cannot be added due to the following error "cannot pickle 'weakref.ReferenceType' object"
-                # collect the process information
-                self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
+            #if unique_id_connect_to in self.container_process_info:
+            #    unique_id = unique_id_connect_to
+            #    queue_to = self.container_process_info[unique_id]['queue_to']
+            #    queue_from = self.container_process_info[unique_id]['queue_from']
+            #else:
+            #    unique_id = self.internal_unique_id
+            #    self.internal_unique_id += 1
+            #    self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
+            #    queue_to, queue_from, contexts = self.new_process(unique_id, self.target_method, self.daemon)
+            #    # contexts cannot be added due to the following error "cannot pickle 'weakref.ReferenceType' object"
+            #    # collect the process information
+            #    self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
+            unique_id, queue_to, queue_from, contexts = self.call_process(list_names, unique_id_connect_to)
 
             # new counter for the passed names
             dict_counter = dict()
@@ -516,6 +590,9 @@ class ParrallelHandler(metaclass=SingletonMeta):
         Returns:
         - the given unique_id, queue for the communication (to,from), context to track the process status.
         """    
+        if self.enabled == False:
+            return None, None, None, None
+
         #print(f'track_model:{list_models}')
         queue_to, queue_from, contexts = None, None, None
         # Get the list of the names
@@ -526,25 +603,26 @@ class ParrallelHandler(metaclass=SingletonMeta):
         # at least 1 tensor to track
         if len(list_names) > 0:
             # start the new process or connect to
-            if unique_id_connect_to in self.container_process_info:
-                unique_id = unique_id_connect_to
-                queue_to = self.container_process_info[unique_id]['queue_to']
-                queue_from = self.container_process_info[unique_id]['queue_from']
-            else:
-                unique_id = self.internal_unique_id
-                self.internal_unique_id += 1
-                self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
-                queue_to, queue_from, contexts = self.new_process(unique_id, self.target_method, self.daemon)
-                # contexts cannot be added due to the following error "cannot pickle 'weakref.ReferenceType' object"
-                # collect the process information
-                self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
+            #if unique_id_connect_to in self.container_process_info:
+            #    unique_id = unique_id_connect_to
+            #    queue_to = self.container_process_info[unique_id]['queue_to']
+            #    queue_from = self.container_process_info[unique_id]['queue_from']
+            #else:
+            #    unique_id = self.internal_unique_id
+            #    self.internal_unique_id += 1
+            #    self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
+            #    queue_to, queue_from, contexts = self.new_process(unique_id, self.target_method, self.daemon)
+            #    # contexts cannot be added due to the following error "cannot pickle 'weakref.ReferenceType' object"
+            #    # collect the process information
+            #    self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
 
-                # new counter for the passed names
-                dict_counter = dict()
-                #for i in range(len(list_names)):
-                #    dict_counter[list_names[i]] = 0
-                dict_counter = {list_names[i]:0 for i in range(len(list_names))}
-                self.active_messages_counter.append(dict_counter)
+            #    # new counter for the passed names
+            #    dict_counter = dict()
+            #    #for i in range(len(list_names)):
+            #    #    dict_counter[list_names[i]] = 0
+            #    dict_counter = {list_names[i]:0 for i in range(len(list_names))}
+            #    self.active_messages_counter.append(dict_counter)
+            unique_id, queue_to, queue_from, contexts = self.call_process(list_names, unique_id_connect_to)
 
             # create the hook
             for name, value in list_models.items():

@@ -17,13 +17,16 @@ class DataRecorder():
     @exception_decorator
     def __init__(self, 
                  shape_expected : tuple, fps : float, maxframes : int, 
-                 path_root : str):
+                 path_root : str, colorBGR : tuple, displayND_mode : str):
         """
         Args:
         - **shape_expected**: Expected video output size.
         - **fps**: Expected video frame rate.
         - **maxframes**: Maximum number of frames for a video.
         - **path_root**: Root to the output destination.
+        - **colorBGR**: Color used for the text inside the video frames.
+        - **colorBGR**: Color used for the text inside the video frames.
+        - **displayND_mode**: How to display high dimensional data (> 2D) ['default','pca'].
         """
         super().__init__() # Call the parent class constructor
 
@@ -31,6 +34,8 @@ class DataRecorder():
         self.fps = fps
         self.maxframes = maxframes
         self.path_root = path_root
+        self.colorBGR = colorBGR
+        self.displayND_mode = displayND_mode
 
         # Internal counter for the number of frames added 
         self.internal_frames = {}
@@ -94,6 +99,8 @@ class DataRecorder():
         # Plot to figure
         if tensor_data.dim() == 2:
             fig = DataPlot.tensor_plot2D(tensor_data)
+        elif self.displayND_mode == 'pca':
+            fig = DataPlot.plot_pca(tensor_data)
         else:
             minval=torch.min(tensor_data)
             maxval=torch.max(tensor_data)
@@ -109,7 +116,7 @@ class DataRecorder():
         font = cv2.FONT_HERSHEY_SIMPLEX
         position = (50,50)
         fontScale = 0.5
-        fontColor = (255,0,0)
+        fontColor = self.colorBGR
         thickness = 1
         lineType = 2
         cv2.putText(image, internal_message, position, font, fontScale, fontColor, thickness, lineType) 

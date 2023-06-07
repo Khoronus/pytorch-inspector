@@ -13,6 +13,13 @@ torch, torchvision, torch audio should be installed separately.
 pip3 install .
 ```
 
+**Note**
+The warning message *OpenBLAS Warning : Detect OpenMP Loop and this application may hang. Please rebuild the library with USE_OPENMP=1 option.* is shown if the tsne visualization is used. It may be necessary to install a version OpenBLAS with OpenMP support or recompile it. A possible solution is to install as follow:
+
+```console
+sudo apt-get install libopenblas-openmp-dev
+```
+
 ### Uninstall 
 
 ```console
@@ -51,7 +58,7 @@ def main():
     #----------------------------------
     # Callback functions are used to process data passed from the main process to child processes.
     # DataRecorder is an example
-    dr = DataRecorder((640,480), 20., 100, 'output')
+    dr = DataRecorder(shape_expected=(640,480), fps=20., maxframes=20, path_root='output', colorBGR=(255,0,255), displayND_mode='default')
 
     #----------------------------------
     # Step 2: Define a ParrallelHandler

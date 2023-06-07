@@ -66,7 +66,7 @@ def test_training():
     # Add a warning that cuda is initialized
     # Add internal unique_id
     print(f'cuda is initialized:{torch.cuda.is_initialized()}')
-    dr = DataRecorder((640,480), 20., 30, 'output')
+    dr = DataRecorder(shape_expected=(640,480), fps=20., maxframes=30, path_root='output', colorBGR=(255,0,255))
     ph = ParrallelHandler(callback_onrun=dr.tensor_plot2D, callback_onclosing=dr.flush, frequency=5.0, timeout=30, target_method='spawn')
     id, queue_to, queue_from, context = ph.track_model(0, {'model': model}, callback_transform=None)
 

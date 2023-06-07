@@ -1,5 +1,6 @@
 import inspect
 import traceback
+import os
 import numpy as np
 import torch
 import torchvision
@@ -43,9 +44,10 @@ def test_training():
     # Add a warning that cuda is initialized
     # Add internal unique_id
     print(f'cuda is initialized:{torch.cuda.is_initialized()}')
-    dr0 = DataRecorder((640,480), 20., 100, 'output')
+    dr0 = DataRecorder(shape_expected=(640,480), fps=20., maxframes=20, path_root='output', colorBGR=(255,0,255), displayND_mode='pca')
     ph0 = ParrallelHandler(callback_onrun=dr0.tensor_plot2D, callback_onclosing=dr0.flush, frequency=20.0, timeout=30, target_method='spawn')
     ph = ParrallelHandler()
+    ph.set_enabled(True)
     #ph = ParrallelHandler(callback=None, frequency=2.0, timeout=30.0, target_method='spawn')
     id, queue_to, queue_from, context = ph.track_model(0, {'model': model}, callback_transform=None)
     #ph.track_layer(1, {'features2_': model.features[2], 'features5_': model.features[5], 'features12_': model.features[12]})
@@ -53,15 +55,27 @@ def test_training():
     #ph.track_layer(3, {'classifier0_': model.classifier[0], 'classifier3_': model.classifier[3], 'classifier6_': model.classifier[6]}) # select 0,3,6
     # Input source to pass to the model, used to test the hook
     input_to_test = torch.randn(1, 3, 224, 224)
-    list_valid_forward, list_valid_backward = ModelExplorer.get_hook_layers(model, [input_to_test])
-    print('##################')
-    print(f'list_valid list_valid_forward:{list_valid_forward}')
-    print('##################')
-    print(f'list_valid list_valid_backward:{list_valid_backward}')
-    # Change the first value with:
-    # -1 --> create a new process  
-    # id --> attach to the created process
-    id, queue_to, queue_from, context = ph.track_layer(-1, list_valid_backward, callback_transform=None)
+
+    file_path = 'output/list_valid_01_alexnet_backward.txt'
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        print('##################')
+        print(f'load from file:{file_path}')
+        list_layers_loaded = ModelExplorer.load_list_layers_name(file_path)
+        list_valid_backward = ModelExplorer.get_hook_layers_fromlist(model, list_layers_loaded)
+        print('##################')
+        print(f'list_valid list_valid_backward:{list_valid_backward}')
+        id, queue_to, queue_from, context = ph.track_layer(-1, list_valid_backward, callback_transform=None)
+    else:
+        list_valid_forward, list_valid_backward = ModelExplorer.get_hook_layers(model, [input_to_test])
+        print('##################')
+        print(f'list_valid list_valid_forward:{list_valid_forward}')
+        print('##################')
+        print(f'list_valid list_valid_backward:{list_valid_backward}')
+        # Change the first value with:
+        # -1 --> create a new process  
+        # id --> attach to the created process
+        id, queue_to, queue_from, context = ph.track_layer(-1, list_valid_backward, callback_transform=None)
+        ModelExplorer.save_list_layers_name(list_valid_backward, file_path)
 
     # Move the model to GPU if available
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") # check if GPU is available
