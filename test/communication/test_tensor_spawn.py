@@ -11,7 +11,7 @@ if __name__ == '__main__':
     a_vec = torch.randn(50,50,requires_grad=True)
     c_prime = torch.randn(80,80,requires_grad=True)
 
-    dr0 = DataRecorder(shape_expected=(640,480), fps=20., maxframes=30, path_root='output', colorBGR=(255,0,255))
+    dr0 = DataRecorder(shape_expected=(640,480), fps=20., maxframes=30, path_root='output', colorBGR=(255,0,255), displayND_mode='default')
     ph1 = ParrallelHandler(callback_onrun=dr0.tensor_plot2D, callback_onclosing=dr0.flush, frequency=20.0, timeout=30.0, target_method='spawn', daemon=False)
     unique_id, queue_to, queue_from, contexts = ph1.track_tensor(0, {'a_vec':a_vec, 'c_prime':c_prime}, callback_transform=None)
 

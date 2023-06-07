@@ -111,7 +111,13 @@ The default data recorder will create a video of the tensors tracked. The curren
 
 ## Design Notes
 
-Tensors are passed to child process as CPU, clone, and detached to reduce the use of GPU memory.
+Tensors are passed to child process as it is. This may cause an increment in the VRAM usage. The program will not check if the producer process will terminate. A warning message may be generated.  
+```
+[W CudaIPCTypes.cpp:15] Producer process has been terminated before all shared CUDA tensors released. See Note [Sharing CUDA tensors]
+```
+
+It may be advise to pass a callback_transform method to the **track** functions (i.e. *.cpu().clone().detach()*).  
+Tensors passed to child process as CPU, clone, and detached will reduce the use of VRAM.  
 It introduces some time delay, but it should be compensated by decreasing the frequency in which the data is pushed to queue.  
 
 The library declares the following lines in pytorch_inspector/utils/DataPlot.py.  

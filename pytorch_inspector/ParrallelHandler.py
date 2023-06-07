@@ -270,7 +270,8 @@ class ParrallelHandler(metaclass=SingletonMeta):
                     else:
                         active_messages_counter[name] += 1
                         if callback_transform is None:
-                            shared_data=x.cpu().clone().detach()
+                            #shared_data=x.cpu().clone().detach()
+                            shared_data=x
                         else:
                             shared_data=callback_transform(x)
                         info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
@@ -335,7 +336,8 @@ class ParrallelHandler(metaclass=SingletonMeta):
                     else:
                         active_messages_counter[name] += 1
                         if callback_transform is None:
-                            shared_data=grad_output[0].cpu().clone().detach()
+                            #shared_data=grad_output[0].cpu().clone().detach()
+                            shared_data=grad_output[0]
                         else:
                             shared_data=callback_transform(grad_output[0])
                         info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
@@ -409,7 +411,8 @@ class ParrallelHandler(metaclass=SingletonMeta):
                             output_data = output[0]
                         #print(f'output_data:{output_data} grad:{g}')
                         if callback_transform is None:
-                            shared_data=output_data.cpu().clone().detach()
+                            #shared_data=output_data.cpu().clone().detach()
+                            shared_data=output_data
                         else:
                             shared_data=callback_transform(output_data)                            
                         info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 

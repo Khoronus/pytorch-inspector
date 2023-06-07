@@ -150,7 +150,7 @@ class DataPlot():
     def plot_pca(tensor_data):
         tensor = tensor_data
         # Reshape the tensor to have 2 dimensions
-        tensor = tensor.view(tensor.size(0) * tensor.size(1), -1)
+        tensor = tensor.reshape(tensor.size(0) * tensor.size(1), -1)
         # Center the tensor
         tensor -= tensor.mean(dim=0)
         # Compute the covariance matrix
