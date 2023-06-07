@@ -5,6 +5,7 @@ import torch
 
 from pytorch_inspector.DataStruct import ProcessInfoData
 from pytorch_inspector.utils.Decorators import *
+from pytorch_inspector.utils.QueueOp import *
 
 #__all__ = ["MultiprocessingWriter, MultiprocessingWriterFork, MultiprocessingWriterSpawn"]
 
@@ -131,7 +132,11 @@ class MultiprocessingWriter:
         # It may be redundant
         self.on_closing()
 
-        print('MultiprocessingWriter.run done')
+        # Clear the queues
+        QueueOp.clear(self.queue_from)
+        QueueOp.clear(self.queue_to)
+
+        print(f'MultiprocessingWriter.run {self.this_unique_id} done')
 
 class MultiprocessingWriterFork(MultiprocessingCtx.ctx_fork.Process, MultiprocessingWriter):
     def __init__(self, *args, **kwargs):

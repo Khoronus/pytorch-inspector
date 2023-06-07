@@ -12,6 +12,8 @@ All the possible layers that allow hook backpropagation are automatically detect
 python example/01_model_alexnet.py
 ```
 
+**Note** Known issue. The loss in the example may be *nan*. Please, run the script again.
+
 ### 02_lightning_mnist
 
 The example trains a simple classifier for MNIST dataset. The minimal ParallelHandler create the result in the folder output.

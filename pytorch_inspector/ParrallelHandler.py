@@ -41,7 +41,10 @@ class ParrallelHandler(metaclass=SingletonMeta):
         - **target_method**: Target method used to create a process (fork/spawn).
         - **daemon**: Create the new process as deamon (True/False).
         """    
+        # Container with all the processes events
         self.events = []
+        # Container with all the processes contexts
+        self.contexts = []
         # Container for the counter of active messages passed between all the processes
         # A new process will create a new dictionary of valid keys and total messages passed.
         # The counter is used to allow a maximum of 1 active message to be 
@@ -84,6 +87,19 @@ class ParrallelHandler(metaclass=SingletonMeta):
         for event in self.events:
             if event is not None:
                 event.set()
+
+    @exception_decorator
+    def is_alive(self) -> None:
+        """
+        Check if a process is alive.
+        Returns:
+        - It returns True if at least a process is alive. False otherwise.
+        """    
+        for allcontexts in self.contexts:
+            for context in allcontexts:
+                if context is not None:
+                    if context.is_alive(): return True
+        return False
 
     def set_enabled(self, enabled) -> None:
         """
@@ -135,6 +151,8 @@ class ParrallelHandler(metaclass=SingletonMeta):
         - **args**: Configuration arguments for the class Process.
         - **start_method**: Defines the starting method for the process (fork/spawn).
         - **daemon**: Create the new process as deamon (True/False).
+        Return:
+        - It return an object to the new created process.
         """    
         print(f'start_process args:{args}')
         # Create the process object inside the function
@@ -144,9 +162,10 @@ class ParrallelHandler(metaclass=SingletonMeta):
         elif start_method == 'spawn':
             obj = MultiprocessingWriterSpawn(*args)
         else:
-            raise ValueError('Invalid choice')
+            raise ValueError(f'parallel_start_process: Invalid choice:{start_method}')
         obj.daemon=daemon
         obj.start()
+        return obj
 
     def new_process(self, unique_id : int, target_method : str, daemon : bool) -> None:
         """
@@ -217,6 +236,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
 
         contexts.append(context)
         self.events.append(event)
+        self.contexts.append(contexts)
 
         return queue_to, queue_from, contexts
 
@@ -271,7 +291,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
                         active_messages_counter[name] += 1
                         if callback_transform is None:
                             #shared_data=x.cpu().clone().detach()
-                            shared_data=x
+                            shared_data=x.detach()
                         else:
                             shared_data=callback_transform(x)
                         info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
@@ -337,7 +357,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
                         active_messages_counter[name] += 1
                         if callback_transform is None:
                             #shared_data=grad_output[0].cpu().clone().detach()
-                            shared_data=grad_output[0]
+                            shared_data=grad_output[0].detach()
                         else:
                             shared_data=callback_transform(grad_output[0])
                         info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
@@ -412,7 +432,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
                         #print(f'output_data:{output_data} grad:{g}')
                         if callback_transform is None:
                             #shared_data=output_data.cpu().clone().detach()
-                            shared_data=output_data
+                            shared_data=output_data.detach()
                         else:
                             shared_data=callback_transform(output_data)                            
                         info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 

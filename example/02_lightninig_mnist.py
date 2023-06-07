@@ -58,7 +58,7 @@ def test_training():
     val_loader = DataLoader(val_dataset, batch_size=32)
 
     # Create a Trainer object
-    trainer = pl.Trainer(max_epochs=5, devices=1, accelerator='gpu')
+    trainer = pl.Trainer(max_epochs=1, devices=1, accelerator='gpu')
 
     # Create a LightningModule object
     model = MNISTClassifier()
@@ -73,8 +73,12 @@ def test_training():
     # Start the training
     trainer.fit(model, train_loader, val_loader)
 
-    # Finalizes the videos (normally not necessary)
+    # Stop the processes. Since they are running as daemon, no join is done.
     ph.stop()
+    while ph.is_alive():
+        import time
+        time.sleep(0.1)
+    print('Finished Training')
 
 if __name__ == "__main__":
 

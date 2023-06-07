@@ -1,3 +1,5 @@
+from multiprocessing import Value
+
 import torch
 
 import numpy as np
@@ -7,6 +9,7 @@ from matplotlib import cm
 
 from pytorch_inspector.utils.DataPlot import DataPlot
 from pytorch_inspector.utils.Decorators import *
+
 
 __all__ = ["DataRecorder"]
 
