@@ -3,4 +3,4 @@ opencv-python
 numpy
 torch
 pdoc
-sklearn
+scikit-learn
