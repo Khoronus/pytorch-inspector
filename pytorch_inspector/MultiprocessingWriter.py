@@ -124,7 +124,6 @@ class MultiprocessingWriter:
                 list_data = []
                 list_data.append(key)
                 queue_to.put(list_data)    
-
                 # release the shared memory
                 #del local_data
                 # reset the timer

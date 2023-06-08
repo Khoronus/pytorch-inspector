@@ -29,6 +29,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
                  callback_onclosing : Optional[Any],
                  frequency : float, timeout : float,
                  target_method : str,
+                 max_queue_size : int = 1000,
                  daemon : bool = True):
 
         """
@@ -39,7 +40,11 @@ class ParrallelHandler(metaclass=SingletonMeta):
         - **frequency**: Backpropagation tensor sampling recording.
         - **timeout**: Maximum time without receiving new data before timeout.
         - **target_method**: Target method used to create a process (fork/spawn).
+        - **max_queue_size**: Maximum queue size (used to transfer data between processes).
         - **daemon**: Create the new process as deamon (True/False).
+
+        When the number of elements in queue reaches max_queue_size, the queue is clean (all data read),
+        and no more elements can be pushed to the queue.
         """    
         # Container with all the processes events
         self.events = []
@@ -56,6 +61,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
         self.frequency = frequency
         self.timeout = timeout
         self.target_method = target_method
+        self.max_queue_size = max_queue_size
         self.daemon = daemon
 
         # Internal message passed to all the active processes
@@ -267,22 +273,25 @@ class ParrallelHandler(metaclass=SingletonMeta):
         # Add an element to the queue only if the condition is true
         do_add_to_queue = True
         def hook(grad):
+            #print(f'name:{name}')
             try:
+                #print(f'{name} queue_from.qsize:{queue_from.qsize()}/{maxsize_queue}')
                 if queue_from.qsize() > 0: 
                     # check if the counter should be decreased
                     content = queue_from.get_nowait()
-                    #print(f'content:{content} active_messages:{active_messages}')
                     active_messages_counter[content[0]] -= 1
                     #print(f'content:{content} type:{type(content)}')
             except Exception as e:
+                #print(f'tensor_backpropagation_hook_wrapper.ex_queue_from:{e}')
                 pass
 
             nonlocal do_add_to_queue
             if queue_to.qsize() == 0: do_add_to_queue = True
 
+            #print(f'name:{name} ic:{internal_counter[name]} amc:{active_messages_counter[name]}')
             if internal_counter[name] % self.frequency == 0 and active_messages_counter[name] == 0:
                 # put the tensor in the queue
-                #print(f'{name} queue.qsize:{queue.qsize()}/{maxsize_queue}')
+                #print(f'{name} queue.qsize:{queue_to.qsize()}/{maxsize_queue}')
                 if do_add_to_queue:
                     if queue_to.qsize() > maxsize_queue:
                         do_add_to_queue = False
@@ -290,8 +299,8 @@ class ParrallelHandler(metaclass=SingletonMeta):
                     else:
                         active_messages_counter[name] += 1
                         if callback_transform is None:
-                            #shared_data=x.cpu().clone().detach()
-                            shared_data=x.detach()
+                            shared_data=x.cpu().clone().detach()
+                            #shared_data=x.detach()
                         else:
                             shared_data=callback_transform(x)
                         info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
@@ -337,6 +346,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
                     active_messages_counter[content[0]] -= 1
                     #print(f'content:{content} type:{type(content)}')
             except Exception as e:
+                #print(f'layer_backpropagation_hook_wrapper.ex_queue_from:{e}')
                 pass
 
             if grad_output is None:
@@ -404,7 +414,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
                     active_messages_counter[content[0]] -= 1
                     #print(f'content:{content} type:{type(content)}')
             except Exception as e:
-                print(f'ex_queue_from:{e}')
+                #print(f'model_forwardpropagation_hook_wrapper.ex_queue_from:{e}')
                 pass
 
             if output is None:
@@ -459,6 +469,10 @@ class ParrallelHandler(metaclass=SingletonMeta):
             unique_id = unique_id_connect_to
             queue_to = self.container_process_info[unique_id]['queue_to']
             queue_from = self.container_process_info[unique_id]['queue_from']
+            # add new names to the list of active messages
+            for i in range(len(list_names)):
+                self.active_messages_counter[unique_id][list_names[i]] = 0
+            contexts = self.contexts[unique_id]
         else:
             unique_id = self.internal_unique_id
             self.internal_unique_id += 1
@@ -469,10 +483,9 @@ class ParrallelHandler(metaclass=SingletonMeta):
             self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
             # new counter for the passed names
             dict_counter = dict()
-            #for i in range(len(list_names)):
-            #    dict_counter[list_names[i]] = 0
             dict_counter = {list_names[i]:0 for i in range(len(list_names))}
             self.active_messages_counter.append(dict_counter)
+
         return unique_id, queue_to, queue_from, contexts
 
     @exception_decorator
@@ -525,18 +538,18 @@ class ParrallelHandler(metaclass=SingletonMeta):
             #    self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
             unique_id, queue_to, queue_from, contexts = self.call_process(list_names, unique_id_connect_to)
 
-            # new counter for the passed names
-            dict_counter = dict()
-            #for i in range(len(list_names)):
-            #    dict_counter[list_names[i]] = 0
-            dict_counter = {list_names[i]:0 for i in range(len(list_names))}
-            self.active_messages_counter.append(dict_counter)
+            ## new counter for the passed names
+            #dict_counter = dict()
+            ##for i in range(len(list_names)):
+            ##    dict_counter[list_names[i]] = 0
+            #dict_counter = {list_names[i]:0 for i in range(len(list_names))}
+            #self.active_messages_counter.append(dict_counter)
 
-            # create the hook
+            # create the hook [name of the associated tensor, and value (tensor)]
             for name, value in list_tensors.items():
-                value.register_hook(self.tensor_backpropagation_hook_wrapper(name, len(list_names) * 4, value, 
-                                                                                queue_to, queue_from, self.active_messages_counter[-1],
-                                                                                callback_transform))
+                value.register_hook(self.tensor_backpropagation_hook_wrapper(name, self.max_queue_size, #len(list_names) * 20, 
+                                                                             value, queue_to, queue_from, self.active_messages_counter[-1],
+                                                                             callback_transform))
             return unique_id, queue_to, queue_from, contexts
         else:
             print('ParallelHandler.track_tensor warning:unable to hook any tensor')
@@ -581,16 +594,16 @@ class ParrallelHandler(metaclass=SingletonMeta):
             #    self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
             unique_id, queue_to, queue_from, contexts = self.call_process(list_names, unique_id_connect_to)
 
-            # new counter for the passed names
-            dict_counter = dict()
-            #for i in range(len(list_names)):
-            #    dict_counter[list_names[i]] = 0
-            dict_counter = {list_names[i]:0 for i in range(len(list_names))}
-            self.active_messages_counter.append(dict_counter)
+            ## new counter for the passed names
+            #dict_counter = dict()
+            ##for i in range(len(list_names)):
+            ##    dict_counter[list_names[i]] = 0
+            #dict_counter = {list_names[i]:0 for i in range(len(list_names))}
+            #self.active_messages_counter.append(dict_counter)
 
             # create the hook
             for name, value in list_layers.items():
-                value.register_full_backward_hook(self.layer_backpropagation_hook_wrapper(name, len(list_names) * 2, 
+                value.register_full_backward_hook(self.layer_backpropagation_hook_wrapper(name, self.max_queue_size, #len(list_names) * 2, 
                                                                                             queue_to, queue_from, self.active_messages_counter[-1],
                                                                                             callback_transform))
             return unique_id, queue_to, queue_from, contexts
@@ -649,7 +662,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
 
             # create the hook
             for name, value in list_models.items():
-                value.register_forward_hook(self.model_forwardpropagation_hook_wrapper(name, len(list_names) * 20, 
+                value.register_forward_hook(self.model_forwardpropagation_hook_wrapper(name, self.max_queue_size,# len(list_names) * 20, 
                                                                                         queue_to, queue_from, self.active_messages_counter[unique_id], #[-1],
                                                                                         callback_transform))
             return unique_id, queue_to, queue_from, contexts
@@ -657,3 +670,5 @@ class ParrallelHandler(metaclass=SingletonMeta):
             print('ParallelHandler.track_model warning:unable to hook any layer')
 
         return None, None, None, None
+
+#TODO: Fix attach to process

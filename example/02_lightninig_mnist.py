@@ -58,7 +58,7 @@ def test_training():
     val_loader = DataLoader(val_dataset, batch_size=32)
 
     # Create a Trainer object
-    trainer = pl.Trainer(max_epochs=1, devices=1, accelerator='gpu')
+    trainer = pl.Trainer(max_epochs=5, devices=1, accelerator='gpu')
 
     # Create a LightningModule object
     model = MNISTClassifier()
@@ -66,8 +66,10 @@ def test_training():
     # Add a warning that cuda is initialized
     # Add internal unique_id
     print(f'cuda is initialized:{torch.cuda.is_initialized()}')
-    dr = DataRecorder(shape_expected=(640,480), fps=20., maxframes=30, path_root='output', colorBGR=(255,0,255), displayND_mode='default')
-    ph = ParrallelHandler(callback_onrun=dr.tensor_plot2D, callback_onclosing=dr.flush, frequency=5.0, timeout=30, target_method='spawn')
+    dr = DataRecorder(shape_expected=(640,480), fps=20., maxframes=30, path_root='output', 
+                      colorBGR=(255,0,255), displayND_mode='default')
+    ph = ParrallelHandler(callback_onrun=dr.tensor_plot2D, callback_onclosing=dr.flush, 
+                          frequency=5.0, timeout=30, max_queue_size=1000, target_method='spawn')
     id, queue_to, queue_from, context = ph.track_model(0, {'model': model}, callback_transform=None)
 
     # Start the training
