@@ -27,6 +27,12 @@ if VERSION.endswith('dev'):
 # Read requirements.txt
 with open('requirements.txt', 'r') as f:
     requirements = f.read().splitlines()
+# Read requirements linux
+with open('requirements_torch_linux.txt', 'r') as f:
+    requirements_torch_linux = f.read().splitlines()
+# Read requirements windows
+with open('requirements_torch_windows.txt', 'r') as f:
+    requirements_torch_windows = f.read().splitlines()
 
 setup(
     # Metadata
@@ -40,7 +46,17 @@ setup(
     packages=find_packages(),
     scripts=[],
     url="https://github.com/Khoronus/pytorch_inspector/",
-    install_requires=requirements,
+    install_requires=[
+      requirements,
+    ], 
+    extras_require={
+      'linux': [
+            requirements_torch_linux
+            ],
+      'windows': [
+            requirements_torch_windows
+            ]
+    },    
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: Apache-2.0",

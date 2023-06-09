@@ -1,7 +1,7 @@
 """
 .. include:: ../README.md
 """
-__version__ = '0.2.0.dev'
+__version__ = '0.3.0.dev'
 
 from .MultiprocessingWriter import *
 from .ModelExplorer import *
