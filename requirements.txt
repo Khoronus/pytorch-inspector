@@ -1,6 +1,4 @@
 matplotlib
 opencv-python
 numpy
-torch
-pdoc
 scikit-learn

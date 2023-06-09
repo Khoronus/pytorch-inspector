@@ -1,0 +1,12 @@
+# https://pip.pypa.io/en/stable/cli/pip_install/#install-extra-index-url
+# https://stackoverflow.com/questions/2477117/pip-requirements-txt-with-alternative-index
+# https://pytorch.org/
+# https://stackoverflow.com/questions/18026980/python-setuptools-how-can-i-list-a-private-repository-under-install-requires
+# https://stackoverflow.com/questions/72720235/requirements-txt-for-pytorch-for-both-cpu-and-gpu-platforms
+
+# for CUDA 11.6 torch
+torch@https://download.pytorch.org/whl/cu116/torch-1.13.1%2Bcu116-cp38-cp38-win_amd64.whl
+torchvision
+torchaudio
+
+pdoc

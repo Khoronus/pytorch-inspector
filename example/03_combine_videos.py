@@ -10,7 +10,19 @@ def get_files_in_folder(folder_path):
             files.append(entry.path)
     return files
 
-def combine_videos(video_files, output_file, output_size):
+def combine_videos(video_files, output_file, output_size, out_video):
+    """
+    Args:
+    - **video_files**: List of videos to open.
+    - **output_file**: Output video filename.
+    - **output_size**: Output video size.
+    - **out_video**: cv2.VideoWriter expected if new frames should be added.
+    It combines all valid videos passed with video_files in a single video.
+    The output video is created only if out_video is None.
+
+    Return
+    - It returns the updated video output.
+    """    
     # Load the videos
     videos = [cv2.VideoCapture(video_file) for video_file in video_files]
     
@@ -30,8 +42,9 @@ def combine_videos(video_files, output_file, output_size):
     panel_height = output_size[1] // n_rows
     
     # Define the codec and create VideoWriter object
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(output_file, fourcc, 20.0, output_size)
+    if out_video is None:
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out_video = cv2.VideoWriter(output_file, fourcc, 20.0, output_size)
     
     while True:
         # Create an empty frame for the output video
@@ -41,10 +54,12 @@ def combine_videos(video_files, output_file, output_size):
         for i, video in enumerate(videos):
             # unable to open the video
             if not video.isOpened():
+                print('video not opened')
                 continue
             print(f'video id:{i}')
             ret, frame = video.read()
             if not ret:
+                print('video not ret')
                 break
             # Resize the frame to fit in the panel
             frame = cv2.resize(frame, (panel_width, panel_height))
@@ -57,7 +72,7 @@ def combine_videos(video_files, output_file, output_size):
             output_frame[y_start:y_end, x_start:x_end] = frame
         
         # Write the output frame to the output video
-        out.write(output_frame)
+        out_video.write(output_frame)
         
         # Break the loop if any of the videos has ended
         if not ret:
@@ -66,10 +81,12 @@ def combine_videos(video_files, output_file, output_size):
     # Release everything if job is finished
     for video in videos:
         video.release()
-    out.release()
+
+    return out_video
+    
 
 def main():
-    print(f'{os.path.basename(__file__)} [folder_in] [filename_out] [width] [height]')
+    print(f'{os.path.basename(__file__)} [folder_in] [filename_out] [width] [height] [indexes_desired(0,1,...)]')
     print(f'i.e. output output_file.mp4 1920 1080')
     arg1 = sys.argv[1]
     print("Argument 1:", arg1)
@@ -79,9 +96,39 @@ def main():
     print("Argument 3:", arg3)
     arg4 = sys.argv[4]
     print("Argument 4:", arg4)
+    arg5 = sys.argv[5]
+    print("Argument 5:", arg5)
+
+    # Get the list of the files
     files = get_files_in_folder(arg1)
-    print(f'files:{files}')
-    combine_videos(files, arg2, (int(arg3),int(arg4)))
+
+    # Get the indexes selected
+    indexes_desired = [int(x) for x in arg5.split(',')]
+    print(f'indexes_desired:{indexes_desired}')
+
+    # Create a video with all the selected indexes
+    out_video = None
+    for index_desired in indexes_desired:
+        
+        # Use all the files or prune the videos which index is different than the desired one
+        if index_desired < 0:
+            valid_files = files
+        else:
+            valid_files = []
+            for file in files:
+                filename = os.path.basename(file)
+                #print(f'filename:{filename}')
+                separator = '_'
+                words = filename.split(separator)
+                #print(f'words:{words[-2]} {words[-3]}')
+                if index_desired < 0 or int(words[-2]) == index_desired:
+                    valid_files.append(file)
+        print(f'index_desired:{index_desired} valid_files:{valid_files}')
+        if len(valid_files) > 0:
+            sorted_valid_files = sorted(valid_files)
+            out_video = combine_videos(sorted_valid_files, arg2, (int(arg3),int(arg4)), out_video)
+    # Release the video
+    out_video.release()
 
 if __name__ == '__main__':
     main()

@@ -97,13 +97,16 @@ Folder with basic examples to test the correct behavior of the library.
 
 ## Output
 
-The default data recorder will create a video of the tensors tracked. The current code creates plot for 2D tensors and 3D tensors in the form of [1xWxH]. Other shapes are converted in histograms.  
+The default data recorder will create a video of the tensors tracked. The current code creates plot for 2D tensors and 3D tensors in the form of [1xWxH]. Other shapes are converted in histograms (default) or 2D PCA is applied.  
 <div style="display:flex">
-  <div style="flex: 1; padding-left: 10px;">
-    <img src="images/Plot.gif" alt="Plot Example" witdh="100%" height="100%"/>
+  <div style="flex: 1; padding-right: 10px;">
+    <img src="images/Plot.gif" alt="Plot Example"/>
   </div>
   <div style="flex: 1; padding-right: 10px;">
-    <img src="images/Histogram.gif" alt="Histogram Example" witdh="100%" height="100%"/>
+    <img src="images/Histogram.gif" alt="Histogram Example"/>
+  </div>
+  <div style="flex: 1;">
+    <img src="images/pca.gif" alt="PCA Example"/>
   </div>
 </div>
  
