@@ -83,7 +83,7 @@ class DataPlot():
         fig = plt.figure(dpi=300)
         ax = fig.add_subplot(1, 1, 1, projection='3d')
         # Convert tensor to numpy array
-        tensor_np = tensor_data.numpy()
+        tensor_np = tensor_data.cpu().numpy()
         ax.plot_surface(x, y, tensor_np, cmap=cm.Spectral_r)
         return fig
         # Save the figure as image
@@ -167,5 +167,17 @@ class DataPlot():
         #pca_result = pca_result.view(*tensor_data.shape[:-1], -1)
         # Create a surface plot
         fig = plt.figure(dpi=300)
-        plt.scatter(pca_result[..., 0], pca_result[..., 1])
+        plt.scatter(pca_result[..., 0].cpu().numpy(), pca_result[..., 1].cpu().numpy())
         return fig
+
+    @staticmethod
+    def plot_pca_lowrank(tensor_data):
+        # Flatten the tensor
+        x = tensor_data.view(tensor_data.size(0), -1)
+        # Compute PCA using pca_lowrank function
+        U, S, V = torch.pca_lowrank(x)
+        # Project the data onto the first two principal components
+        x_pca = torch.mm(x - x.mean(0), V[:, :2])
+        # Create a surface plot
+        fig = plt.figure(dpi=300)
+        plt.scatter(x_pca[:, 0].cpu().numpy(), x_pca[:, 1].cpu().numpy())

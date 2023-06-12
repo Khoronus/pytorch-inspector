@@ -93,11 +93,14 @@ class DataRecorder():
         if isinstance(input_data, np.ndarray):
             #tensor_np = input_data
             print('EEE Wrong data type')
-        if isinstance(input_data, torch.Tensor):
-            if input_data == 'cpu':
-                tensor_data = input_data.detach().squeeze(0)
-            else:
-                tensor_data = input_data.cpu().detach().squeeze(0)
+        #if isinstance(input_data, torch.Tensor):
+        #    if input_data == 'cpu':
+        #        tensor_data = input_data.detach().squeeze(0)
+        #    else:
+        #        tensor_data = input_data.cpu().detach().squeeze(0)
+
+        # Try to remove the case [1xWxH]
+        tensor_data = input_data.squeeze(0)
 
         # Plot to figure
         if tensor_data.dim() == 2:

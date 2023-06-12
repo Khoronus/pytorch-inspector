@@ -21,6 +21,7 @@ class SingletonMeta(type):
         return cls._instances[cls]
 
 class ParrallelHandler(metaclass=SingletonMeta):
+
     """
     Singleton class to manage all processes instantiated by the calling program.
     """    
@@ -75,6 +76,8 @@ class ParrallelHandler(metaclass=SingletonMeta):
         self.internal_unique_id = 0
         # Unique status to define if the class is enabled.
         self.enabled = True
+        # Pass data between processes only if on the same device (if True)
+        self.same_device_only = False
         atexit.register(self.stop, check_is_alive=False)
 
     def __del__(self):
@@ -116,7 +119,8 @@ class ParrallelHandler(metaclass=SingletonMeta):
                     if context.is_alive(): return True
         return False
 
-    def set_enabled(self, enabled) -> None:
+    @exception_decorator
+    def set_enabled(self, enabled : bool) -> None:
         """
         It set the enable status of the class.
         The creation/attachment of new process is possible only if enable is True.
@@ -124,6 +128,15 @@ class ParrallelHandler(metaclass=SingletonMeta):
         - **enabled**: If True the processes will be created. No, otherwise.
         """    
         self.enabled = enabled
+
+    @exception_decorator
+    def set_same_device_only(self, same_device_only : bool) -> None:
+        """
+        It set if tensors can be passed to other processes only if on the same device (i.e. cuda:0).
+        Args:
+        - **same_device_only**: If True the processes will add to queue an element only if on the same device.
+        """    
+        self.same_device_only = same_device_only
 
     @exception_decorator
     def get_last_key(self):
@@ -146,12 +159,14 @@ class ParrallelHandler(metaclass=SingletonMeta):
         """    
         return self.internal_unique_id - 1
 
+    @exception_decorator
     def set_internal_message(self, internal_message : str) -> None:
         """
         Message passed to all the active processes while running.
         """
         self.internal_message = internal_message
 
+    @exception_decorator
     def set_pass_to_process(self, pass_to_process : bool) -> None:
         """
         Set if the data is passed to the process
@@ -299,6 +314,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
 
             #print(f'name:{name} ic:{internal_counter[name]} amc:{active_messages_counter[name]}')
             if internal_counter[name] % self.frequency == 0 and active_messages_counter[name] == 0:
+
                 # put the tensor in the queue
                 #print(f'{name} queue.qsize:{queue_to.qsize()}/{maxsize_queue}')
                 if do_add_to_queue:
@@ -306,16 +322,17 @@ class ParrallelHandler(metaclass=SingletonMeta):
                         do_add_to_queue = False
                         pass
                     else:
-                        active_messages_counter[name] += 1
                         if callback_transform is None:
-                            #shared_data=x.cpu().clone().detach()
-                            shared_data = MemoryOp.assignTo(x)
-                            if shared_data.is_leaf: shared_data = shared_data.detach()
+                            shared_data = MemoryOp.assignTo(x, self.same_device_only)
+                            if shared_data != None: shared_data = shared_data.detach()
                         else:
                             shared_data=callback_transform(x)
-                        info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
-                                                    message=str(internal_counter[name]), shared_data=shared_data)
-                        queue_to.put_nowait(info_data)    
+                        # valid data
+                        if shared_data != None:
+                            active_messages_counter[name] += 1
+                            info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
+                                                        message=str(internal_counter[name]), shared_data=shared_data)
+                            queue_to.put_nowait(info_data)    
 
             internal_counter[name] = internal_counter[name] + 1
             return
@@ -374,16 +391,17 @@ class ParrallelHandler(metaclass=SingletonMeta):
                         do_add_to_queue = False
                         pass
                     else:
-                        active_messages_counter[name] += 1
                         if callback_transform is None:
-                            #shared_data=grad_output[0].cpu().clone().detach()
-                            shared_data = MemoryOp.assignTo(grad_output[0])
-                            if shared_data.is_leaf: shared_data = shared_data.detach()
+                            shared_data = MemoryOp.assignTo(grad_output[0], self.same_device_only)
+                            if shared_data != None: shared_data = shared_data.detach()
                         else:
                             shared_data=callback_transform(grad_output[0])
-                        info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
-                                                    message=str(internal_counter[name]), shared_data=shared_data)
-                        queue_to.put_nowait(info_data)    
+                        # valid data
+                        if shared_data != None:
+                            active_messages_counter[name] += 1
+                            info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
+                                                        message=str(internal_counter[name]), shared_data=shared_data)
+                            queue_to.put_nowait(info_data)    
         
             internal_counter[name] = internal_counter[name] + 1
         return hook
@@ -445,27 +463,29 @@ class ParrallelHandler(metaclass=SingletonMeta):
                         do_add_to_queue = False
                         pass
                     else:
-                        active_messages_counter[name] += 1
-
+                        # Get the output tensor data 
                         output_data = output
                         if isinstance(output, torch.Tensor) == False:
                             output_data = output[0]
-                        #print(f'output_data:{output_data} grad:{g}')
-                        if callback_transform is None:
-                            #shared_data=output_data.cpu().clone().detach()
-                            shared_data = MemoryOp.assignTo(output_data)
-                            if shared_data.is_leaf: shared_data = shared_data.detach()
-                        else:
-                            shared_data=callback_transform(output_data)                            
-                        info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
-                                                    message=str(internal_counter[name]), shared_data=shared_data)
-                        queue_to.put_nowait(info_data)    
 
+                        if callback_transform is None:
+                            shared_data = MemoryOp.assignTo(output_data, self.same_device_only)
+                            #if shared_data != None and shared_data.is_leaf: shared_data = shared_data.detach()
+                            if shared_data != None: shared_data = shared_data.detach()
+                        else:
+                            shared_data=callback_transform(output_data)
+                        # valid data
+                        if shared_data != None:
+                            active_messages_counter[name] += 1
+                            info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
+                                                        message=str(internal_counter[name]), shared_data=shared_data)
+                            queue_to.put_nowait(info_data)    
+                        
             internal_counter[name] = internal_counter[name] + 1
         return hook
 
     @exception_decorator
-    def call_process(self, list_names, unique_id_connect_to):
+    def call_process(self, list_names : list, unique_id_connect_to : int):
         """
         It creates or connect to a process.
         Args:
@@ -696,5 +716,3 @@ class ParrallelHandler(metaclass=SingletonMeta):
             print('ParallelHandler.track_model warning:unable to hook any layer')
 
         return None, None, None, None
-
-#TODO: Fix attach to process

@@ -158,8 +158,8 @@ It may also keep child process alive if created as spawn. Please set timeout gre
 ---
 ## Known Issues
 1. Multi-device code may duplicate the hook handlers.  
-While the running device may be detected internally, the current default DataRecorder saves the result as located on a single device.  
-In order to avoid multiple allocations, please consider to test the current device ID.  
+Current default DataRecorder saves the result with the device ID information in the filename.    
+In order to avoid multiple allocations, please consider to test the current device ID and disable the hook creation by setting *set_enabled=False*.  
 
 In Lightning  
 ```python

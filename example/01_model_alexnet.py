@@ -17,7 +17,7 @@ def test_training():
 
     # Define the hyperparameters
     batch_size = 32 # adjust this according to your GPU memory
-    num_epochs = 1 # adjust this according to your desired training time
+    num_epochs = 10 # adjust this according to your desired training time
     learning_rate = 0.01 # adjust this according to your optimization algorithm
 
     # Load the data and apply some transformations
@@ -50,6 +50,7 @@ def test_training():
                            frequency=20.0, timeout=120, max_queue_size=1000, target_method='spawn')
     ph = ParrallelHandler()
     ph.set_enabled(True)
+    ph.set_same_device_only(True)
     #ph = ParrallelHandler(callback=None, frequency=2.0, timeout=30.0, target_method='spawn')
     id, queue_to, queue_from, context = ph.track_model(0, {'model': model}, callback_transform=None)
     #ph.track_layer(1, {'features2_': model.features[2], 'features5_': model.features[5], 'features12_': model.features[12]})
