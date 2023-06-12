@@ -76,11 +76,7 @@ def test_training():
     trainer.fit(model, train_loader, val_loader)
 
     # Stop the processes. Since they are running as daemon, no join is done.
-    ph.stop()
-    while ph.is_alive():
-        import time
-        time.sleep(0.1)
-    print('Finished Training')
+    ph.stop(check_is_alive = True)
 
 if __name__ == "__main__":
 

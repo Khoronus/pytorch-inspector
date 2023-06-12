@@ -71,6 +71,16 @@ def main():
     #----------------------------------
     ph.track_model(-1, {'model': model}, callback_transform=None)
     ph.track_layer(-1, {'classifier0_': model.classifier[0], 'classifier3_': model.classifier[3], 'classifier6_': model.classifier[6]}, callback_transform=None)
+
+    #----------------------------------
+    # Step 4: Desired code ...
+    #----------------------------------
+
+    #----------------------------------
+    # Step 5: Stop
+    #----------------------------------
+    ph = pytorch_inspector.ParrallelHandler()
+    ph.stop(check_is_alive = True)
 ```
 
 Furter calls in any part of the program can be done as follow:
@@ -114,7 +124,9 @@ The default data recorder will create a video of the tensors tracked. The curren
 
 ## Design Notes
 
-Tensors are passed to child process as it is. This may cause an increment in the VRAM usage. The program will not check if the producer process will terminate. A warning message may be generated.  
+Tensors are passed to child process as it is. This may cause an increment in the VRAM usage. The default code test if there is enough memory to use the GPU tensor or pass to CPU.  
+
+ The program will not check if the producer process will terminate. A warning message may be generated.  
 ```
 [W CudaIPCTypes.cpp:15] Producer process has been terminated before all shared CUDA tensors released. See Note [Sharing CUDA tensors]
 ```
@@ -143,3 +155,29 @@ New process are created as daemon, and the program may close before a video is f
 Interrupting the main process may create corrupted videos (please check cv2.WriteVideo for more information).  
 It may also keep child process alive if created as spawn. Please set timeout greater than 0.
 
+---
+## Known Issues
+1. Multi-device code may duplicate the hook handlers.  
+While the running device may be detected internally, the current default DataRecorder saves the result as located on a single device.  
+In order to avoid multiple allocations, please consider to test the current device ID.  
+
+In Lightning  
+```python
+from pytorch_lightning import Trainer
+trainer = Trainer()
+if trainer.global_rang == 0:
+    ph.set_enabled(True)
+else:
+    ph.set_enabled(False)
+```
+
+In PyTorch
+```python
+if torch.cuda.current_device() == 0:
+    ph.set_enabled(True)
+else:
+    ph.set_enabled(False)
+```
+
+2. PCA is slow for very larget tensors.  
+The elaboration may take longer than expected if the tensor size is large (i.e. several seconds if size is [16, 16536, 1000]). Please, conside the use of the *displayND_mode='default'*.

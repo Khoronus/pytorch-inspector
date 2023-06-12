@@ -17,7 +17,7 @@ def test_training():
 
     # Define the hyperparameters
     batch_size = 32 # adjust this according to your GPU memory
-    num_epochs = 10 # adjust this according to your desired training time
+    num_epochs = 1 # adjust this according to your desired training time
     learning_rate = 0.01 # adjust this according to your optimization algorithm
 
     # Load the data and apply some transformations
@@ -120,11 +120,7 @@ def test_training():
                 ph.set_pass_to_process(False)
 
     # Stop the processes. Since they are running as daemon, no join is done.
-    ph.stop()
-    while ph.is_alive():
-        import time
-        time.sleep(0.1)
-    print('Finished Training')
+    ph.stop(check_is_alive = True)
 
     # Test the model on the test data and compute accuracy
     correct = 0 # initialize the number of correct predictions

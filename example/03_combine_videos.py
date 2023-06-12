@@ -121,6 +121,9 @@ def main():
                 separator = '_'
                 words = filename.split(separator)
                 #print(f'words:{words[-2]} {words[-3]}')
+                # Get the index of the video
+                # For more information, please check the DataRecorder.py code
+                # where the file is created (fname_out = ...)
                 if index_desired < 0 or int(words[-2]) == index_desired:
                     valid_files.append(file)
         print(f'index_desired:{index_desired} valid_files:{valid_files}')

@@ -5,6 +5,7 @@ import torch
 from pytorch_inspector.MultiprocessingWriter import MultiprocessingCtx, MultiprocessingWriterFork, MultiprocessingWriterSpawn
 from pytorch_inspector.DataStruct import ProcessInfoData
 from pytorch_inspector.utils.Decorators import *
+from pytorch_inspector.utils.MemoryOp import *
 
 __all__ = ["ParrallelHandler"]
 
@@ -74,7 +75,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
         self.internal_unique_id = 0
         # Unique status to define if the class is enabled.
         self.enabled = True
-        atexit.register(self.stop)
+        atexit.register(self.stop, check_is_alive=False)
 
     def __del__(self):
         """
@@ -82,17 +83,25 @@ class ParrallelHandler(metaclass=SingletonMeta):
         Note: The processes should be terminated if run as fork, since are of type daemon.
         """    
         print('ParallelHandler.__del__')
-        self.stop()
+        self.stop(check_is_alive=False)
 
     @exception_decorator
-    def stop(self) -> None:
+    def stop(self, check_is_alive : bool) -> None:
         """
         Stop running processes.
+        Args:
+        - **check_is_alive**: Check if running process are alive.
         """    
         #print(f'ParallelHandler.stop:{self.events}')
         for event in self.events:
             if event is not None:
                 event.set()
+        if check_is_alive:
+            print('stop:check_is_alive')
+            while self.is_alive():
+                import time
+                time.sleep(0.1)
+            print('stop:check_is_alive done')
 
     @exception_decorator
     def is_alive(self) -> None:
@@ -299,8 +308,9 @@ class ParrallelHandler(metaclass=SingletonMeta):
                     else:
                         active_messages_counter[name] += 1
                         if callback_transform is None:
-                            shared_data=x.cpu().clone().detach()
-                            #shared_data=x.detach()
+                            #shared_data=x.cpu().clone().detach()
+                            shared_data = MemoryOp.assignTo(x)
+                            if shared_data.is_leaf: shared_data = shared_data.detach()
                         else:
                             shared_data=callback_transform(x)
                         info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
@@ -367,7 +377,8 @@ class ParrallelHandler(metaclass=SingletonMeta):
                         active_messages_counter[name] += 1
                         if callback_transform is None:
                             #shared_data=grad_output[0].cpu().clone().detach()
-                            shared_data=grad_output[0].detach()
+                            shared_data = MemoryOp.assignTo(grad_output[0])
+                            if shared_data.is_leaf: shared_data = shared_data.detach()
                         else:
                             shared_data=callback_transform(grad_output[0])
                         info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
@@ -442,7 +453,8 @@ class ParrallelHandler(metaclass=SingletonMeta):
                         #print(f'output_data:{output_data} grad:{g}')
                         if callback_transform is None:
                             #shared_data=output_data.cpu().clone().detach()
-                            shared_data=output_data.detach()
+                            shared_data = MemoryOp.assignTo(output_data)
+                            if shared_data.is_leaf: shared_data = shared_data.detach()
                         else:
                             shared_data=callback_transform(output_data)                            
                         info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
@@ -489,6 +501,20 @@ class ParrallelHandler(metaclass=SingletonMeta):
         return unique_id, queue_to, queue_from, contexts
 
     @exception_decorator
+    def check_can_track(self):
+        """
+        Test if all the conditions are satisfied.
+        Return
+        - True if can track. False, otherwise. 
+        """
+        if self.enabled == False:
+            return False
+        #if self.device_used >= 0 and torch.cuda.is_available():
+        #    if self.device_used != torch.cuda.current_device():
+        #        return False
+        return True
+    
+    @exception_decorator
     def track_tensor(self, unique_id_connect_to, list_tensors, callback_transform : Optional[Any]):#, tensors_hook_mode):
         """
         Automatically creates the hook and processes for the list of tensors to track.
@@ -504,7 +530,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
         Returns:
         - The given unique_id, queue for the communication (to,from), context to track the process status.
         """    
-        if self.enabled == False:
+        if not self.check_can_track():
             return None, None, None, None
 
         #print(f'track_tensor:{list_tensors}')
@@ -568,7 +594,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
         Returns:
         - the given unique_id, queue for the communication (to,from), context to track the process status.
         """    
-        if self.enabled == False:
+        if not self.check_can_track():
             return None, None, None, None
 
         queue_to, queue_from, contexts = None, None, None
@@ -626,7 +652,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
         Returns:
         - the given unique_id, queue for the communication (to,from), context to track the process status.
         """    
-        if self.enabled == False:
+        if not self.check_can_track():
             return None, None, None, None
 
         #print(f'track_model:{list_models}')

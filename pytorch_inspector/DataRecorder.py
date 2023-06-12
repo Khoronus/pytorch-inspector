@@ -135,8 +135,11 @@ class DataRecorder():
                 self.internal_out[key].release()
             # mp4 | 0x7634706d for mp4 (it works in some machines)
             fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
+            # Get the current device index that runs the code
+            device_index = -1
+            device_index = torch.cuda.current_device()
             #fourcc = cv2.VideoWriter_fourcc(*'DIVX') # avi 
-            fname_out = self.path_root + '/' + key + '_' + str(unique_id) + '_' + str(self.internal_counter[key]) + '_video.mp4'
+            fname_out = self.path_root + '/' + key + '_' + str(device_index) + '_' + str(unique_id) + '_' + str(self.internal_counter[key]) + '_video.mp4'
             print(f'fname_out:{fname_out}')
             self.internal_out[key] = cv2.VideoWriter(fname_out,
                                                 fourcc, self.fps, self.shape_expected)

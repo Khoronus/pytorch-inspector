@@ -58,7 +58,4 @@ if __name__ == '__main__':
             break
 
     # Stop the processes. Since they are running as daemon, no join is done.
-    ph1.stop()
-    while ph1.is_alive():
-        time.sleep(0.1)
-    print('Finished Training')
+    ph1.stop(check_is_alive = True)
