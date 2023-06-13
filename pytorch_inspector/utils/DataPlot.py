@@ -173,7 +173,7 @@ class DataPlot():
     @staticmethod
     def plot_pca_lowrank(tensor_data):
         # Flatten the tensor
-        x = tensor_data.view(tensor_data.size(0), -1)
+        x = tensor_data.reshape(tensor_data.size(0), -1)
         # Compute PCA using pca_lowrank function
         U, S, V = torch.pca_lowrank(x)
         # Project the data onto the first two principal components
@@ -181,3 +181,4 @@ class DataPlot():
         # Create a surface plot
         fig = plt.figure(dpi=300)
         plt.scatter(x_pca[:, 0].cpu().numpy(), x_pca[:, 1].cpu().numpy())
+        return fig

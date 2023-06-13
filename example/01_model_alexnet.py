@@ -49,8 +49,8 @@ def test_training():
     ph0 = ParrallelHandler(callback_onrun=dr0.tensor_plot2D, callback_onclosing=dr0.flush, 
                            frequency=20.0, timeout=120, max_queue_size=1000, target_method='spawn')
     ph = ParrallelHandler()
-    ph.set_enabled(True)
-    ph.set_same_device_only(True)
+    ph.enabled = True
+    ph.same_device_only = True
     #ph = ParrallelHandler(callback=None, frequency=2.0, timeout=30.0, target_method='spawn')
     id, queue_to, queue_from, context = ph.track_model(0, {'model': model}, callback_transform=None)
     #ph.track_layer(1, {'features2_': model.features[2], 'features5_': model.features[5], 'features12_': model.features[12]})

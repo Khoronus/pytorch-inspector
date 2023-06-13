@@ -106,7 +106,8 @@ class DataRecorder():
         if tensor_data.dim() == 2:
             fig = DataPlot.tensor_plot2D(tensor_data)
         elif self.displayND_mode == 'pca':
-            fig = DataPlot.plot_pca(tensor_data)
+            fig = DataPlot.plot_pca_lowrank(tensor_data.clone())
+            #fig = DataPlot.plot_pca(tensor_data.clone())
         else:
             minval=torch.min(tensor_data)
             maxval=torch.max(tensor_data)
