@@ -2,6 +2,9 @@ import functools
 import inspect
 import traceback
 import sys
+from typing import Any
+
+from pytorch_inspector.utils.DictOp import *
 
 def exception_decorator(func):
     """
@@ -27,3 +30,46 @@ def exception_decorator(func):
             traceback.print_exc()
             raise
     return wrapper
+
+
+def wrapper_multiple_process_decorator(func):
+    """
+    Decorator to run multiple processes from a splitted list
+    """
+    def track_multiple_process(*args, **kwargs):
+        """
+        Args:
+        - **list_items**: Input dictionary with the list of items to track. If not defined, it uses the second argument in the function.
+        - **num_process**: Split the dictionary in N many object (if possible).
+        The wrapper automatically check if the list_items is defined as dictionary object or passed as argument.
+        The dictionary is splitted in N objects where N is the size of the input dictionary.
+        """
+        if 'list_items' in kwargs:
+            input_dict=kwargs['list_items']
+        else:
+            input_dict=args[2]
+
+        # min number of process 1, max len of dictionary
+        num_process = 1
+        if 'num_process' in kwargs: num_process = kwargs['num_process']
+        if num_process > len(input_dict): num_process = len(input_dict)
+        if num_process <= 0: num_process = 1
+        # split and call the function
+        n_list_valid_backward = DictOp.split_dict(input_dict, n=num_process)
+        for l in n_list_valid_backward:
+            print(f'l:{l} t:{type(l)}')
+            # get only the arguments that are valid in the function
+            kwargs2 = {k: v for k, v in kwargs.items() if k in func.__code__.co_varnames}
+            # temporary object in case it is necessary to modify the list of items to track
+            # in the args (tuple type)
+            tmp_tuple = args
+            # Modify the arguments with the list of items
+            if 'list_items' in kwargs2:
+                kwargs2['list_items'] = l
+            else:
+                tmp_list = list(tmp_tuple)
+                tmp_list[2] = l
+                tmp_tuple = tuple(tmp_list)
+            res = func(*tmp_tuple, **kwargs2)
+        return res
+    return track_multiple_process

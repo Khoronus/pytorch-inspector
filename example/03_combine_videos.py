@@ -98,6 +98,8 @@ def main():
     print("Argument 4:", arg4)
     arg5 = sys.argv[5]
     print("Argument 5:", arg5)
+    arg6 = sys.argv[6]
+    print("Argument 6:", arg6)
 
     # Get the list of the files
     files = get_files_in_folder(arg1)
@@ -105,6 +107,9 @@ def main():
     # Get the indexes selected
     indexes_desired = [int(x) for x in arg5.split(',')]
     print(f'indexes_desired:{indexes_desired}')
+    # Get the header selected
+    header_desired = [x for x in arg6.split(',')]
+    print(f'header_desired:{header_desired}')
 
     # Create a video with all the selected indexes
     out_video = None
@@ -116,22 +121,29 @@ def main():
         else:
             valid_files = []
             for file in files:
-                filename = os.path.basename(file)
-                #print(f'filename:{filename}')
-                separator = '_'
-                words = filename.split(separator)
-                #print(f'words:{words[-2]} {words[-3]}')
-                # Get the index of the video
-                # For more information, please check the DataRecorder.py code
-                # where the file is created (fname_out = ...)
-                if index_desired < 0 or int(words[-2]) == index_desired:
-                    valid_files.append(file)
+                
+                try:
+                    filename = os.path.basename(file)
+                    #print(f'filename:{filename}')
+                    separator = '_'
+                    words = filename.split(separator)
+                    #print(f'words:{words}')
+                    #print(f'words:{words[-2]} {words[-3]} {words[-4]} {header_desired} {words[-4] in header_desired}')
+                    # Get the index of the video
+                    # For more information, please check the DataRecorder.py code
+                    # where the file is created (fname_out = ...)
+                    if index_desired < 0 or int(words[-2]) == index_desired:
+                        if header_desired == '-1' or words[-5] in header_desired:
+                            valid_files.append(file)
+                except Exception as e:
+                    print(f'exception:{e}')
         print(f'index_desired:{index_desired} valid_files:{valid_files}')
         if len(valid_files) > 0:
             sorted_valid_files = sorted(valid_files)
             out_video = combine_videos(sorted_valid_files, arg2, (int(arg3),int(arg4)), out_video)
     # Release the video
-    out_video.release()
+    if out_video is not None:
+        out_video.release()
 
 if __name__ == '__main__':
     main()

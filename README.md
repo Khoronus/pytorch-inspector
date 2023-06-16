@@ -166,17 +166,17 @@ In Lightning
 from pytorch_lightning import Trainer
 trainer = Trainer()
 if trainer.global_rang == 0:
-    ph.set_enabled(True)
+    ph.enabled = True
 else:
-    ph.set_enabled(False)
+    ph.enabled = False
 ```
 
 In PyTorch
 ```python
 if torch.cuda.current_device() == 0:
-    ph.set_enabled(True)
+    ph.enabled = True
 else:
-    ph.set_enabled(False)
+    ph.enabled = False
 ```
 
 2. PCA is slow for very larget tensors.  

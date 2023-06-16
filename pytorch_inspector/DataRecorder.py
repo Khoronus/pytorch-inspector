@@ -76,6 +76,8 @@ class DataRecorder():
 
         Plot a tensor image and write a message on the top. The image is then added to a video.
 
+        Note: 1D Tensors are currently not supported.
+
         Args:
         - **unique_id**: Unique identifier associated to this process
         - **key**: input unique identifier.
@@ -103,16 +105,18 @@ class DataRecorder():
         tensor_data = input_data.squeeze(0)
 
         # Plot to figure
-        if tensor_data.dim() == 2:
+        if tensor_data.dim() == 1:
+            pass
+        elif tensor_data.dim() == 2:
             fig = DataPlot.tensor_plot2D(tensor_data)
         elif self.displayND_mode == 'pca':
-            fig = DataPlot.plot_pca_lowrank(tensor_data.clone())
+            fig = DataPlot.plot_pca_lowrank(tensor_data)
             #fig = DataPlot.plot_pca(tensor_data.clone())
         else:
             minval=torch.min(tensor_data)
             maxval=torch.max(tensor_data)
-            hist = torch.histc(tensor_data.cpu().detach(), bins=10, min=minval, max=maxval)
-            fig = DataPlot.plot_1D(hist.cpu().detach(), minval, maxval)
+            hist = torch.histc(tensor_data, bins=10, min=minval, max=maxval)
+            fig = DataPlot.plot_1D(hist, minval.item(), maxval.item())
 
         # plot the image to a numpy array
         image = DataPlot.plt2arr(fig)

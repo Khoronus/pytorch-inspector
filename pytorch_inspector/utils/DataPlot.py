@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 import matplotlib
 from sklearn.manifold import TSNE
+from sklearn.decomposition import PCA
+from sklearn.utils.extmath import randomized_svd
 matplotlib.use('Agg')
 plt.ion()
 plt.ioff()
@@ -115,7 +117,7 @@ class DataPlot():
     @staticmethod
     def plot_1D(tensor_data, minv, maxv):#, fname_out):
         x = np.linspace(minv,maxv,num=tensor_data.shape[0])
-        y = tensor_data.numpy()
+        y = tensor_data.cpu().numpy()
 
         # Create a surface plot
         fig, (ax,ax2) = plt.subplots(nrows=2, sharex=True)

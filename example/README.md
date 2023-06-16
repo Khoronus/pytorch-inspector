@@ -27,7 +27,8 @@ python example/02_lightning_mnist.py
 ### 03_combine_videos
 
 The script combine all the videos in a folder (i.e. output folder of the previous examples), and create a new resized video.  
+[path_to_videos] [output_filename] [width] [height] [indexes(-1 all)] [headers(-1 all)]  
 
 ```
-python example/03_combine_videos.py output output_videos.mp4 1920 1080 -1
+python example/03_combine_videos.py output output_videos.mp4 1920 1080 -1 -1
 ```

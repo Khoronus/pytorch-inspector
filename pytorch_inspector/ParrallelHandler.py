@@ -519,13 +519,14 @@ class ParrallelHandler(metaclass=SingletonMeta):
         return True
     
     @exception_decorator
-    def track_tensor(self, unique_id_connect_to, list_tensors, callback_transform : Optional[Any]):#, tensors_hook_mode):
+    @wrapper_multiple_process_decorator
+    def track_tensor(self, unique_id_connect_to : int, list_items : list, callback_transform : Optional[Any]):#, tensors_hook_mode):
         """
         Automatically creates the hook and processes for the list of tensors to track.
         The tensors hook only backpropagation.
         Args:
         - **unique_id_connect_to**: Process unique identifier to connect to (if it exists).
-        - **list_tensors**: List of tensors to track {'a_tensor':a_tensor,'b_tensor':b_tensor}
+        - **list_items**: List of tensors to track {'a_tensor':a_tensor,'b_tensor':b_tensor}
         - **tensors_hook_mode**: Container with the type of hook associated to a tensor {'a_tensor':{b},'b_tensor':{b}}
                                  If no matching name is found, it uses the backpropagation.
                                  Supported mode:
@@ -542,7 +543,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
 
         # Get the list of the names
         list_names = []
-        for name, value in list_tensors.items():
+        for name, value in list_items.items():
             if isinstance(value, torch.Tensor) and value.requires_grad is False:
                 print(f'ParallelHandler.track_tensor warning:{name} requires_grad forced to True to support hook')
                 value.requires_grad_(True)
@@ -555,7 +556,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
         if len(list_names) > 0:
             unique_id, queue_to, queue_from, contexts = self.create_or_attachto_process(list_names, unique_id_connect_to)
             # create the hook [name of the associated tensor, and value (tensor)]
-            for name, value in list_tensors.items():
+            for name, value in list_items.items():
                 value.register_hook(self.tensor_backpropagation_hook_wrapper(name, self.max_queue_size,
                                                                              value, queue_to, queue_from, self.active_messages_counter[-1],
                                                                              self.passed_messages_counter[unique_id],
@@ -566,13 +567,14 @@ class ParrallelHandler(metaclass=SingletonMeta):
         return None, None, None, None
 
     @exception_decorator
-    def track_layer(self, unique_id_connect_to, list_layers, callback_transform : Optional[Any]):
+    @wrapper_multiple_process_decorator
+    def track_layer(self, unique_id_connect_to : int, list_items : list, callback_transform : Optional[Any]):
         """
         Automatically creates the hook and processes for the list of layers to track.
         The layer hook only backpropagation.
         Args:
         - **unique_id_connect_to**: Process unique identifier to connect to (if it exists).
-        - **list_layers**: List of layers to track {'a_layer':a_layer,'b_layer':b_layer}
+        - **list_items**: List of layers to track {'a_layer':a_layer,'b_layer':b_layer}
         - **callback_transform**: How to transform the passed tensor
 
         Returns:
@@ -584,14 +586,14 @@ class ParrallelHandler(metaclass=SingletonMeta):
         queue_to, queue_from, contexts = None, None, None
         # Get the list of the names
         list_names = []
-        for name, value in list_layers.items():
+        for name, value in list_items.items():
             list_names.append(name)
 
         # at least 1 tensor to track
         if len(list_names) > 0:
             unique_id, queue_to, queue_from, contexts = self.create_or_attachto_process(list_names, unique_id_connect_to)
             # create the hook
-            for name, value in list_layers.items():
+            for name, value in list_items.items():
                 value.register_full_backward_hook(self.layer_backpropagation_hook_wrapper(name, self.max_queue_size, 
                                                                                           queue_to, queue_from, self.active_messages_counter[-1],
                                                                                           self.passed_messages_counter[unique_id],
@@ -604,13 +606,14 @@ class ParrallelHandler(metaclass=SingletonMeta):
         return None, None, None, None
 
     @exception_decorator
-    def track_model(self, unique_id_connect_to, list_models, callback_transform : Optional[Any]):
+    @wrapper_multiple_process_decorator
+    def track_model(self, unique_id_connect_to : int, list_items : list, callback_transform : Optional[Any]):
         """
         Automatically creates the hook and processes for the list of layers to track.
         The layer hook only forward propagation.
         Args:
         - **unique_id_connect_to**: Process unique identifier to connect to (if it exists).
-        - **list_models**: List of models to track {'a_model':a_model,'b_model':b_model}
+        - **list_items**: List of models to track {'a_model':a_model,'b_model':b_model}
         - **callback_transform**: How to transform the passed tensor
 
         Returns:
@@ -623,7 +626,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
         queue_to, queue_from, contexts = None, None, None
         # Get the list of the names
         list_names = []
-        for name, value in list_models.items():
+        for name, value in list_items.items():
             list_names.append(name)
 
         # at least 1 tensor to track
@@ -631,7 +634,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
             unique_id, queue_to, queue_from, contexts = self.create_or_attachto_process(list_names, unique_id_connect_to)
 
             # create the hook
-            for name, value in list_models.items():
+            for name, value in list_items.items():
                 value.register_forward_hook(self.model_forwardpropagation_hook_wrapper(name, self.max_queue_size,
                                                                                        queue_to, queue_from, 
                                                                                        self.active_messages_counter[unique_id], 

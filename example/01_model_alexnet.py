@@ -9,7 +9,7 @@ import torchvision.transforms as transforms
 
 import sys
 sys.path.append('.')
-from pytorch_inspector import ParrallelHandler, ModelExplorer, DataRecorder, DataPlot
+from pytorch_inspector import ParrallelHandler, ModelExplorer, DataRecorder, DataPlot, DictOp
 
 def test_training():
     print('>>>>> test_training <<<<<')
@@ -52,12 +52,13 @@ def test_training():
     ph.enabled = True
     ph.same_device_only = True
     #ph = ParrallelHandler(callback=None, frequency=2.0, timeout=30.0, target_method='spawn')
-    id, queue_to, queue_from, context = ph.track_model(0, {'model': model}, callback_transform=None)
+    id, queue_to, queue_from, context = ph.track_model(unique_id_connect_to=0, list_items={'model': model}, callback_transform=None)
     #ph.track_layer(1, {'features2_': model.features[2], 'features5_': model.features[5], 'features12_': model.features[12]})
     #ph.track_layer(2, {'avgpool_': model.avgpool})
     #ph.track_layer(3, {'classifier0_': model.classifier[0], 'classifier3_': model.classifier[3], 'classifier6_': model.classifier[6]}) # select 0,3,6
     # Input source to pass to the model, used to test the hook
     input_to_test = torch.randn(1, 3, 224, 224)
+    print(f'model:{type(model)}')
 
     file_path = 'output/list_valid_01_alexnet_backward.txt'
     if os.path.exists(file_path) and os.path.isfile(file_path):
@@ -67,7 +68,11 @@ def test_training():
         list_valid_backward = ModelExplorer.get_hook_layers_fromlist(model, list_layers_loaded)
         print('##################')
         print(f'list_valid list_valid_backward:{list_valid_backward}')
-        id, queue_to, queue_from, context = ph.track_layer(-1, list_valid_backward, callback_transform=None)
+        id, queue_to, queue_from, context = ph.track_layer(unique_id_connect_to=-1, list_items=list_valid_backward, callback_transform=None, num_process=2)
+        #n_list_valid_backward = DictOp.split_dict(input_dict=list_valid_backward, n=5)
+        #for l in n_list_valid_backward:
+        #    print(f'l:{l} t:{type(l)}')
+        #    id, queue_to, queue_from, context = ph.track_layer(-1, l, callback_transform=None)
     else:
         list_valid_forward, list_valid_backward = ModelExplorer.get_hook_layers(model, [input_to_test])
         print('##################')
