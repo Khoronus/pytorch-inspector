@@ -57,7 +57,7 @@ def wrapper_multiple_process_decorator(func):
         # split and call the function
         n_list_valid_backward = DictOp.split_dict(input_dict, n=num_process)
         for l in n_list_valid_backward:
-            print(f'l:{l} t:{type(l)}')
+            #print(f'l:{l} t:{type(l)}')
             # get only the arguments that are valid in the function
             kwargs2 = {k: v for k, v in kwargs.items() if k in func.__code__.co_varnames}
             # temporary object in case it is necessary to modify the list of items to track

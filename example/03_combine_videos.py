@@ -100,6 +100,8 @@ def main():
     print("Argument 5:", arg5)
     arg6 = sys.argv[6]
     print("Argument 6:", arg6)
+    arg7 = sys.argv[7]
+    print("Argument 7:", arg7)
 
     # Get the list of the files
     files = get_files_in_folder(arg1)
@@ -110,6 +112,9 @@ def main():
     # Get the header selected
     header_desired = [x for x in arg6.split(',')]
     print(f'header_desired:{header_desired}')
+    # Get the header excluded
+    header_excluded = [x for x in arg7.split(',')]
+    print(f'header_excluded:{header_excluded}')
 
     # Create a video with all the selected indexes
     out_video = None
@@ -124,7 +129,7 @@ def main():
                 
                 try:
                     filename = os.path.basename(file)
-                    #print(f'filename:{filename}')
+                    print(f'filename:{filename}')
                     separator = '_'
                     words = filename.split(separator)
                     #print(f'words:{words}')
@@ -133,8 +138,9 @@ def main():
                     # For more information, please check the DataRecorder.py code
                     # where the file is created (fname_out = ...)
                     if index_desired < 0 or int(words[-2]) == index_desired:
-                        if header_desired == '-1' or words[-5] in header_desired:
-                            valid_files.append(file)
+                        if header_desired[0] == "-1" or words[-5] in header_desired:
+                            if header_excluded[0] == "-1" or words[-5] not in header_excluded:
+                                valid_files.append(file)
                 except Exception as e:
                     print(f'exception:{e}')
         print(f'index_desired:{index_desired} valid_files:{valid_files}')
