@@ -86,8 +86,8 @@ def combine_videos(video_files, output_file, output_size, out_video):
     
 
 def main():
-    print(f'{os.path.basename(__file__)} [folder_in] [filename_out] [width] [height] [indexes_desired(0,1,...)]')
-    print(f'i.e. output output_file.mp4 1920 1080')
+    print(f'{os.path.basename(__file__)} [folder_in] [filename_out] [width] [height] [indexes_desired(0,1,...)] [headers_desired] [headers_excluded]')
+    print(f'i.e. output output_file.mp4 1920 1080 -1 -1 -1')
     arg1 = sys.argv[1]
     print("Argument 1:", arg1)
     arg2 = sys.argv[2]
@@ -132,8 +132,6 @@ def main():
                     print(f'filename:{filename}')
                     separator = '_'
                     words = filename.split(separator)
-                    #print(f'words:{words}')
-                    #print(f'words:{words[-2]} {words[-3]} {words[-4]} {header_desired} {words[-4] in header_desired}')
                     # Get the index of the video
                     # For more information, please check the DataRecorder.py code
                     # where the file is created (fname_out = ...)

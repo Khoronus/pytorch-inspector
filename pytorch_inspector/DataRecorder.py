@@ -29,7 +29,7 @@ class DataRecorder():
         - **path_root**: Root to the output destination.
         - **colorBGR**: Color used for the text inside the video frames.
         - **colorBGR**: Color used for the text inside the video frames.
-        - **displayND_mode**: How to display high dimensional data (> 2D) ['default','pca'].
+        - **displayND_mode**: How to display 1D data or high dimensional data (> 2D) ['default','pca','pca_lowrank'].
         """
         super().__init__() # Call the parent class constructor
 
@@ -93,13 +93,7 @@ class DataRecorder():
 
         # Check the data type
         if isinstance(input_data, np.ndarray):
-            #tensor_np = input_data
             print('EEE Wrong data type')
-        #if isinstance(input_data, torch.Tensor):
-        #    if input_data == 'cpu':
-        #        tensor_data = input_data.detach().squeeze(0)
-        #    else:
-        #        tensor_data = input_data.cpu().detach().squeeze(0)
 
         # Try to remove the case [1xWxH]
         tensor_data = input_data.squeeze(0)
@@ -112,8 +106,9 @@ class DataRecorder():
             fig = DataPlot.plot_1D(hist, minval.item(), maxval.item())
         elif tensor_data.dim() == 2:
             fig = DataPlot.tensor_plot2D(tensor_data)
+        elif self.displayND_mode == 'pca_lowrank':
+            fig = DataPlot.plot_pca_lowrank(tensor_data)
         elif self.displayND_mode == 'pca':
-            #fig = DataPlot.plot_pca_lowrank(tensor_data)
             fig = DataPlot.plot_pca(tensor_data.clone())
         else:
             minval=torch.min(tensor_data)

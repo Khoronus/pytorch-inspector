@@ -51,7 +51,6 @@ def test_training():
     ph = ParrallelHandler()
     ph.enabled = True
     ph.same_device_only = True
-    #ph = ParrallelHandler(callback=None, frequency=2.0, timeout=30.0, target_method='spawn')
     id, queue_to, queue_from, context = ph.track_model(unique_id_connect_to=0, list_items={'model': model}, callback_transform=None)
     #ph.track_layer(1, {'features2_': model.features[2], 'features5_': model.features[5], 'features12_': model.features[12]})
     #ph.track_layer(2, {'avgpool_': model.avgpool})
@@ -69,10 +68,6 @@ def test_training():
         print('##################')
         print(f'list_valid list_valid_backward:{list_valid_backward}')
         id, queue_to, queue_from, context = ph.track_layer(unique_id_connect_to=-1, list_items=list_valid_backward, callback_transform=None, num_process=2)
-        #n_list_valid_backward = DictOp.split_dict(input_dict=list_valid_backward, n=5)
-        #for l in n_list_valid_backward:
-        #    print(f'l:{l} t:{type(l)}')
-        #    id, queue_to, queue_from, context = ph.track_layer(-1, l, callback_transform=None)
     else:
         list_valid_forward, list_valid_backward = ModelExplorer.get_hook_layers(model, [input_to_test])
         print('##################')
@@ -108,10 +103,6 @@ def test_training():
             loss = criterion(outputs, labels) # compute the loss
             loss.backward() # backward pass
             optimizer.step() # update the parameters
-
-            #hist = torch.histc(outputs, bins=100, min=torch.min(outputs).item(), max=torch.max(outputs).item())
-            #DataPlot.plot_1D(hist.clone().cpu().detach(), torch.min(outputs).item(), torch.max(outputs).item(), 
-            #                   fname_out='output/3.decoder_dist.png')
 
             running_loss += loss.item() # accumulate the loss
             if i % 200 == 199: # print statistics every 200 batches

@@ -209,9 +209,6 @@ class ParrallelHandler(metaclass=SingletonMeta):
         # Important : The to/from must be reversed respect the process
         # to -> from (main process)  
         # from <- to (child process)
-        #queue_to = torch.multiprocessing.Queue()
-        #queue_from = torch.multiprocessing.Queue()
-        #event = torch.multiprocessing.Event()
         if method == 'fork':
             queue_to =  MultiprocessingCtx.ctx_fork.Queue()
             queue_from = MultiprocessingCtx.ctx_fork.Queue()
@@ -226,26 +223,6 @@ class ParrallelHandler(metaclass=SingletonMeta):
         # Pass the arguments for creating the process object as a tuple
         contexts = []
         args = (unique_id, event, queue_to, queue_from, self.timeout, self.callback_onrun, self.callback_onclosing)
-        #if method == 'spawn':
-        #    # Known issue github.com/pytorch/pytorch/issues/30461
-        #    # torch.multiprocessing.spawn fails when join=False
-        #    context = torch.multiprocessing.spawn(self.parallel_start_process_spawn, args=(args,), nprocs=1, join=False)
-        #    # Wait a message from the process
-        #    print('ParallelHandler.new_process:wait for the child process to be ready')
-        #    data_from_process = queue_from.get()    # necessary for synchronizatino with spawn process
-        #    print('ParallelHandler.new_process:child process is ready')
-        #    #import time
-        #    #time.sleep(3)  # <<< change this with some better solution. 2 ways queue?
-        #elif method == 'fork':
-        #    if torch.cuda.is_initialized():
-        #        raise Exception('ParallelHandler.new_process: cannot fork if cuda is initialized. Please call before any cuda call (i.e. to(device)).')
-        #    context = self.parallel_start_process_fork(args=args)
-        #    # Wait a message from the process
-        #    print('ParallelHandler.new_process:wait for the child process to be ready')
-        #    data_from_process = queue_from.get()    # necessary for synchronizatino with spawn process
-        #    print('ParallelHandler.new_process:child process is ready')
-        #else:
-        #    raise Exception(f'ParallelHandler.new_process: Method [{method}] is not supported (only spawn/fork).')
 
         # Fork may cause DEADLOCK with lightning, spawn may work normally
         context = self.parallel_start_process(args=args, start_method=method, daemon=daemon)
@@ -315,11 +292,8 @@ class ParrallelHandler(metaclass=SingletonMeta):
                 result = all(active_messages_counter[element] == 0 for element in active_messages_counter)
                 # check that the current element did not already passed a message for processing
                 if min_val != max_val and passed_messages_counter[name] == max_val: result = False
-            #print(f'{name} min:{min_val} max:{max_val} pmc:{passed_messages_counter[name]} r:{result}')
             # Put the obj in the queue
             if result and do_add_to_queue:
-                #print(f'{name} queue.qsize:{queue_to.qsize()}/{maxsize_queue}')
-
                 if callback_transform is None:
                     shared_data = MemoryOp.assignTo(tensor, self.times_tensor_memory_size, self.same_device_only)
                     if shared_data != None: shared_data = shared_data.detach()
@@ -327,8 +301,6 @@ class ParrallelHandler(metaclass=SingletonMeta):
                     shared_data=callback_transform(tensor)
                 # valid data
                 if shared_data != None:
-                    #print(f'>>> {name} min:{min_val} max:{max_val} pmc:{passed_messages_counter[name]} r:{result}')
-                    #print(f'shared_data name:{name}')
                     active_messages_counter[name] += 1
                     passed_messages_counter[name] += 1
                     info_data = ProcessInfoData(name=name, internal_message=self.internal_message, 
@@ -362,7 +334,6 @@ class ParrallelHandler(metaclass=SingletonMeta):
         - hook for the backpropagation
         """    
         # register a tensor hook
-        #print(f'tensor_backpropagation_hook_wrapper:{name}')
         # It counts how many times this hook has been called
         internal_counter = {name : 0}
         # Add an element to the queue only if the condition is true
@@ -400,11 +371,8 @@ class ParrallelHandler(metaclass=SingletonMeta):
         Returns:
         - hook for the backpropagation
         """    
-        #print(f'layer_backpropagation_hook_wrapper:{name}')
         # It counts how many times this hook has been called
         internal_counter = {name : 0}
-        # Total number of active messages passed to queue with the name
-        #active_messages = {name : 0}
         # Add an element to the queue only if the condition is true
         do_add_to_queue = True
         # register a tensor hook
@@ -442,7 +410,6 @@ class ParrallelHandler(metaclass=SingletonMeta):
         Returns:
         - hook for the forward propagation
         """    
-        #print(f'model_forwardpropagation_hook_wrapper:{name}')
         # It counts how many times this hook has been called
         internal_counter = {name : 0}
         # Add an element to the queue only if the condition is true
@@ -492,7 +459,6 @@ class ParrallelHandler(metaclass=SingletonMeta):
         else:
             unique_id = self.internal_unique_id
             self.internal_unique_id += 1
-            #self.container_process_info[unique_id] = {'queue_to':queue_to, 'queue_from':queue_from}
             queue_to, queue_from, contexts = self.new_process(unique_id, self.target_method, self.daemon)
             # contexts cannot be added due to the following error "cannot pickle 'weakref.ReferenceType' object"
             # collect the process information
@@ -538,7 +504,6 @@ class ParrallelHandler(metaclass=SingletonMeta):
         if not self.check_can_track():
             return None, None, None, None
 
-        #print(f'track_tensor:{list_tensors}')
         queue_to, queue_from, contexts = None, None, None
 
         # Get the list of the names
@@ -547,10 +512,7 @@ class ParrallelHandler(metaclass=SingletonMeta):
             if isinstance(value, torch.Tensor) and value.requires_grad is False:
                 print(f'ParallelHandler.track_tensor warning:{name} requires_grad forced to True to support hook')
                 value.requires_grad_(True)
-            #print(f'name:{name} value:{value}')
             list_names.append(name)
-
-        #print(f'# list_names:{len(list_names)}')
 
         # at least 1 tensor to track
         if len(list_names) > 0:
@@ -622,7 +584,6 @@ class ParrallelHandler(metaclass=SingletonMeta):
         if not self.check_can_track():
             return None, None, None, None
 
-        #print(f'track_model:{list_models}')
         queue_to, queue_from, contexts = None, None, None
         # Get the list of the names
         list_names = []

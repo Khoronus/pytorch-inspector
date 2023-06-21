@@ -81,7 +81,6 @@ class MultiprocessingWriter:
 
         # synchronize with the main process that this process is ready 
         # with a dummy empty message.
-        #if method == 'spawn': 
         list_data = []
         queue_to.put(list_data)    
 
@@ -103,11 +102,7 @@ class MultiprocessingWriter:
 
             # Get the obj from the queue
             content = queue_from.get_nowait()
-            #content = queue.get()
-            #key = content[0]
-            #internal_message = content[1]
-            #message = content[2]
-            #local_data = content[3]
+
             shared_data = None
             if isinstance(content, ProcessInfoData):
                 key = content.name
@@ -116,7 +111,6 @@ class MultiprocessingWriter:
                 shared_data = content.shared_data
 
             if shared_data is not None:
-                #print(f'key:{key} local_data:{shared_data.shape}')
                 if self.callback_onrun is not None:
                     self.callback_onrun(self.this_unique_id, key, internal_message, message, shared_data)
                 # Share the information that the callback function with key
@@ -124,8 +118,6 @@ class MultiprocessingWriter:
                 list_data = []
                 list_data.append(key)
                 queue_to.put(list_data)    
-                # release the shared memory
-                #del local_data
                 # reset the timer
                 start_time = time.time()        
         # It may be redundant

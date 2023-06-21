@@ -1,3 +1,11 @@
+"""
+Collection of functions and classes to plot data on a figure.
+
+This module contains the code for tensor data plot.
+
+Author: Alessandro Moro
+Date: 2023/06/21
+"""
 import atexit
 import torch
 
@@ -88,11 +96,6 @@ class DataPlot():
         tensor_np = tensor_data.cpu().numpy()
         ax.plot_surface(x, y, tensor_np, cmap=cm.Spectral_r)
         return fig
-        # Save the figure as image
-        #plt.savefig('output/test.png')
-
-        # Save the figure as image
-        #plt.savefig(fname_out)
 
     @staticmethod
     def tensor_plot_colormesh2D(tensor_data, fname_out):
@@ -129,8 +132,6 @@ class DataPlot():
         ax2.plot(x,y)
         plt.tight_layout()
         return fig
-        # Save the figure as image
-        #plt.savefig(fname_out)
 
     @staticmethod
     def tsne(X):
