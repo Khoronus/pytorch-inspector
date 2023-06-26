@@ -21,5 +21,7 @@ jobs:
       - name: Install dependencies
         run: pip install e .[linux]
       - name: Run unittests
-        run: python -m unittest test/test_modules.py
+        run: python -m unittest ./pytorch_inspector/test/test_modules.py
+      - name: Check status
+        run: echo "✅" if ${{ steps.run.outputs.return_code }} == 0 else echo "❌"
         

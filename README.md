@@ -26,6 +26,11 @@ sudo apt-get install libopenblas-openmp-dev
 pip3 uninstall pytorch-inspector
 ```
 
+### Status 
+
+Testing the CI.  
+Linux: [![Status](https://github.com/Khoronus/pytorch-inspector/workflows/Status/badge.svg)](https://github.com/Khoronus/pytorch-inspector/actions?query=workflow%3AStatus)
+
 ### Documentation
 
 The documentation can be created offline with:
