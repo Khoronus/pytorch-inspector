@@ -1,11 +1,11 @@
-# PyTorch Inspector
+# What is pytorch_inspector
 PyTorch library for inspecting the dynamics of a deep neural network model.
 The library handles tensors by hooking forward/backward propagation and passes the tensors to separate processes for further analysis.  
 The main goal of this library is to collect discrete information about the tensors of a model.
 
 ---
 
-## Install Pytorch-Inspector
+## Install pytorch_inspector
 
 torch, torchvision, torch audio should be installed separately.
 

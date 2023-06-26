@@ -1,3 +1,10 @@
+"""
+Collection of functions and classes for operations on memory.
+
+Author: Unknown
+Date: 2023/06/21
+"""
+
 from typing import Optional
 import torch
 

@@ -1,3 +1,10 @@
+"""
+Collection of functions and classes for operations on dictionaries.
+
+Author: Unknown, Alessandro Moro
+Date: 2023/06/21
+"""
+
 class DictOp:
     """
     Container with operations on dictionary

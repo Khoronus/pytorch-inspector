@@ -60,11 +60,13 @@ class DataRecorder():
             if self.internal_out[key_dict] is not None:
                 self.internal_out[key_dict].release()
 
+    #@exception_decorator
+    #def tensor_plot2D(self, 
+    #                  unique_id : int,
+    #                  key : str, internal_message : str, message : str, 
+    #                  input_data : torch.Tensor) -> None:
     @exception_decorator
-    def tensor_plot2D(self, 
-                      unique_id : int,
-                      key : str, internal_message : str, message : str, 
-                      input_data : torch.Tensor) -> None:
+    def tensor_plot2D(self, *args, **kwargs):
         """
         Function called when the process starts.
         The process automatically creates a video of the format:
@@ -85,6 +87,12 @@ class DataRecorder():
         - **message**: message to write on the image.
         - **input_data**: passed input to visualize.
         """
+        unique_id = kwargs['unique_id']
+        key = kwargs['key']
+        internal_message = kwargs['internal_message']
+        message = kwargs['message'] 
+        input_data = kwargs['input_data']
+
         # Check if the key was seen before, otherwise add it.
         if key not in self.internal_counter:
             self.internal_frames[key] = 0

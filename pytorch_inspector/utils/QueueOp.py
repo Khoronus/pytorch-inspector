@@ -1,3 +1,10 @@
+"""
+Collection of functions and classes for operations on queue.
+
+Author: Unknown
+Date: 2023/06/21
+"""
+
 from typing import Any, Optional
 
 class QueueOp:

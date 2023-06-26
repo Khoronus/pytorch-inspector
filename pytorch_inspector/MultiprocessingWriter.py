@@ -10,6 +10,10 @@ from pytorch_inspector.utils.QueueOp import *
 #__all__ = ["MultiprocessingWriter, MultiprocessingWriterFork, MultiprocessingWriterSpawn"]
 
 class MultiprocessingCtx:
+    """
+    Available multiprocessing contexts.
+    """    
+    # Initialize the class with a file name
     ctx_fork = torch.multiprocessing.get_context('fork')
     ctx_spawn = torch.multiprocessing.get_context('spawn')
 
@@ -112,7 +116,16 @@ class MultiprocessingWriter:
 
             if shared_data is not None:
                 if self.callback_onrun is not None:
-                    self.callback_onrun(self.this_unique_id, key, internal_message, message, shared_data)
+                    #self.callback_onrun(self.this_unique_id, key, internal_message, message, shared_data)
+                    self.callback_onrun(
+                        **{
+                            "unique_id":self.this_unique_id,
+                            "key":key,
+                            "internal_message":internal_message,
+                            "message":message,
+                            "input_data":shared_data,
+                        }
+                    )
                 # Share the information that the callback function with key
                 # if completed
                 list_data = []

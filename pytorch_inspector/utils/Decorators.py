@@ -1,3 +1,12 @@
+"""
+Collection of decorators.
+
+This module contains the main decorators used for:
+exception, wrapper of multiple processing (ParallelHandler)
+
+Author: Unknown, Alessandro Moro
+Date: 2023/06/21
+"""
 import functools
 import inspect
 import traceback
