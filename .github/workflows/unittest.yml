@@ -12,8 +12,9 @@ jobs:
   unittest:
     runs-on: ubuntu-latest
     steps:
-      - name: Setup Python
+      - name: Checkout
         uses: actions/checkout@v3
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
