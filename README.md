@@ -29,7 +29,8 @@ pip3 uninstall pytorch-inspector
 ### Status 
 
 Testing the CI.  
-Linux: [![Status](https://github.com/Khoronus/pytorch-inspector/workflows/Status/badge.svg)](https://github.com/Khoronus/pytorch-inspector/actions?query=workflow%3AStatus)
+Website: [![website](https://github.com/Khoronus/pytorch-inspector/actions/workflows/docs.yml/badge.svg)](https://github.com/Khoronus/pytorch-inspector/actions/workflows/docs.yml) 
+Linux: [![Run unittests](https://github.com/Khoronus/pytorch-inspector/actions/workflows/unittest.yml/badge.svg)](https://github.com/Khoronus/pytorch-inspector/actions/workflows/unittest.yml)
 
 ### Documentation
 
