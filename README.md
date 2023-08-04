@@ -63,6 +63,7 @@ def main():
     # Step 1: Define how to process the passed data
     #----------------------------------
     # Callback functions are used to process data passed from the main process to child processes.
+    # options: 'default','pca','pca_lowrank','force2D'
     # DataRecorder is an example
     dr = DataRecorder(shape_expected=(640,480), fps=20., maxframes=20, path_root='output', colorBGR=(255,0,255), displayND_mode='default')
 
@@ -131,7 +132,7 @@ Tensors are passed to child process as it is. This may cause an increment in the
 [W CudaIPCTypes.cpp:15] Producer process has been terminated before all shared CUDA tensors released. See Note [Sharing CUDA tensors]
 ```
 
-It may be advise to pass a callback_transform method to the **track** functions (i.e. *.cpu().clone().detach()*).  
+It may be advise to pass a callback_transform method to the **track** functions (i.e. *callback=lambda x : x.cpu().clone().detach()*).  
 Tensors passed to child process as CPU, clone, and detached will reduce the use of VRAM.  
 It introduces some time delay, but it should be compensated by decreasing the frequency in which the data is pushed to queue.  
 

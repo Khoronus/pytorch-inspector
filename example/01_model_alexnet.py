@@ -76,7 +76,7 @@ def test_training():
         print(f'list_valid list_valid_backward:{list_valid_backward}')
         # Change the first value with:
         # -1 --> create a new process  
-        # id --> attach to the created process
+        # id --> attach to the created process  # lambda x : x.cpu().clone().detach()
         id, queue_to, queue_from, context = ph.track_layer(-1, list_valid_backward, callback_transform=None)
         ModelExplorer.save_list_layers_name(list_valid_backward, file_path)
 

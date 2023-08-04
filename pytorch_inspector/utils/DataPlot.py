@@ -98,6 +98,18 @@ class DataPlot():
         return fig
 
     @staticmethod
+    def convert_to_2d(tensor_data):
+        if tensor_data.ndim == 2:
+            return tensor_data
+        else:
+            return tensor_data.view(-1, tensor_data.size(-1))
+
+    @staticmethod
+    def tensor_forceplot2D(tensor_data):#, fname_out):
+        td = DataPlot.convert_to_2d(tensor_data)
+        return DataPlot.tensor_plot2D(td)
+
+    @staticmethod
     def tensor_plot_colormesh2D(tensor_data, fname_out):
         x = np.linspace(0, tensor_data.shape[1], tensor_data.shape[1] + 1)
         y = np.linspace(0, tensor_data.shape[0], tensor_data.shape[0] + 1)
@@ -185,3 +197,5 @@ class DataPlot():
         fig = plt.figure(dpi=300)
         plt.scatter(x_pca[:, 0].cpu().numpy(), x_pca[:, 1].cpu().numpy())
         return fig
+    
+
