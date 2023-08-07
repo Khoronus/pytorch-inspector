@@ -7,6 +7,7 @@ Author: Alessandro Moro
 Date: 2023/06/21
 """
 import atexit
+import math
 import torch
 
 import numpy as np
@@ -102,7 +103,10 @@ class DataPlot():
         if tensor_data.ndim == 2:
             return tensor_data
         else:
-            return tensor_data.view(-1, tensor_data.size(-1))
+            #return tensor_data.view(-1, tensor_data.size(-1))
+            num_elements = torch.numel(tensor_data)
+            sqrt_elements = int(math.sqrt(num_elements)) + 1
+            return tensor_data.resize_((sqrt_elements, sqrt_elements))
 
     @staticmethod
     def tensor_forceplot2D(tensor_data):#, fname_out):
